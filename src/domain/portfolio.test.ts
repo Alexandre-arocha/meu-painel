@@ -1,4 +1,14 @@
-import { allocation, parseQuantity, type Portfolio } from './portfolio'
+import { allocation, parseAmount, parseQuantity, type Portfolio } from './portfolio'
+
+test('parseAmount aceita "10000", "10.000,50" e "10000.5"', () => {
+  expect(parseAmount('10000')).toEqual({ ok: true, value: 10000 })
+  expect(parseAmount('10.000,50')).toEqual({ ok: true, value: 10000.5 })
+  expect(parseAmount('10000.5')).toEqual({ ok: true, value: 10000.5 })
+})
+
+test('parseAmount rejeita "-5", "abc" e ""', () => {
+  for (const bad of ['-5', 'abc', '']) expect(parseAmount(bad).ok).toBe(false)
+})
 
 const empty: Portfolio = { holdings: [], fixedIncome: { amount: 0 } }
 

@@ -1,4 +1,16 @@
-import { loadPortfolio, loadSettings, savePortfolio, saveSettings } from './storage'
+import { loadPortfolio, loadQuotes, loadSettings, savePortfolio, saveQuotes, saveSettings } from './storage'
+
+test('saveQuotes e loadQuotes guardam a última cotação', () => {
+  const q = [{ symbol: 'BBAS3', price: 28, changePct: 0.5, updatedAt: '2026-10-28T13:00:00Z', stale: false, intraday: [] }]
+  saveQuotes(q)
+  expect(loadQuotes()).toEqual(q)
+})
+
+test('loadQuotes devolve lista vazia se estiver corrompido ou ausente', () => {
+  expect(loadQuotes()).toEqual([])
+  localStorage.setItem('painel:v1:lastQuotes', '{{')
+  expect(loadQuotes()).toEqual([])
+})
 import type { Portfolio } from '../domain/portfolio'
 
 const KEY = 'painel:v1:portfolio'

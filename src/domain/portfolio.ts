@@ -14,6 +14,15 @@ export function parseQuantity(input: string): QuantityResult {
   return { ok: true, value: Number(text) }
 }
 
+export function parseAmount(input: string): QuantityResult {
+  let t = input.replace(/R\$|\s/g, '')
+  if (t === '') return { ok: false, error: 'informe o valor' }
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '')
+  if (!/^\d+(\.\d+)?$/.test(t)) return { ok: false, error: 'valor inválido' }
+  return { ok: true, value: Number(t) }
+}
+
 export function allocation(p: Portfolio, prices: Record<string, number>): Allocation {
   const value = { fixedIncome: Math.max(0, p.fixedIncome.amount || 0), BBAS3: 0, B3SA3: 0 }
   for (const h of p.holdings) {

@@ -1,4 +1,5 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
+import type { Quote } from './prices'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
 const SETTINGS_KEY = 'painel:v1:settings'
@@ -32,6 +33,17 @@ export function loadPortfolio(store: Storage = localStorage): Portfolio {
 
 export function savePortfolio(p: Portfolio, store: Storage = localStorage): void {
   store.setItem(PORTFOLIO_KEY, JSON.stringify({ v: VERSION, portfolio: p }))
+}
+
+const QUOTES_KEY = 'painel:v1:lastQuotes'
+
+export function saveQuotes(quotes: Quote[], store: Storage = localStorage): void {
+  store.setItem(QUOTES_KEY, JSON.stringify(quotes))
+}
+
+export function loadQuotes(store: Storage = localStorage): Quote[] {
+  const data = readJson(store, QUOTES_KEY)
+  return Array.isArray(data) ? (data as Quote[]) : []
 }
 
 export function loadSettings(store: Storage = localStorage): Settings {
