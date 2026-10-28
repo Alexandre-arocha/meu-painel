@@ -57,6 +57,21 @@ test('getQuotes devolve a cotação com intraday vazio se o histórico falhar', 
   expect(q.intraday).toEqual([])
 })
 
+test('getQuotes ignora cotação sem preço válido em vez de devolver NaN', async () => {
+  const f = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      results: [
+        { symbol: 'BBAS3', data: { regularMarketPrice: null, regularMarketChangePercent: 1, regularMarketTime: '2026-10-28T13:58:00Z' } },
+        { symbol: 'B3SA3', data: { regularMarketPrice: 12.3, regularMarketChangePercent: -0.4, regularMarketTime: '2026-10-28T13:58:00Z' } },
+      ],
+    }),
+  })) as unknown as typeof fetch
+  const qs = await createBrapiProvider('tok', f, () => NOW).getQuotes(['BBAS3', 'B3SA3'])
+  expect(qs.map((q) => q.symbol)).toEqual(['B3SA3'])
+})
+
 test('sem token lança erro "token ausente"', async () => {
   const provider = createBrapiProvider(undefined, fakeFetch(), () => NOW)
   await expect(provider.getQuotes(['BBAS3'])).rejects.toThrow('token ausente')

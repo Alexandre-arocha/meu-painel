@@ -57,7 +57,9 @@ export function createBrapiProvider(
       if (!res.ok) throw new Error(`erro ao buscar preços (${res.status})`)
       const body = (await res.json()) as { results?: { symbol: string; data: Raw }[] }
       return Promise.all(
-        (body.results ?? []).map(async (r) => {
+        (body.results ?? [])
+          .filter((r) => typeof r.data?.regularMarketPrice === 'number' && Number.isFinite(r.data.regularMarketPrice))
+          .map(async (r) => {
           const updatedAt = String(r.data.regularMarketTime)
           return {
             symbol: r.symbol,
