@@ -34,10 +34,18 @@ export function loadPortfolio(store: Storage = localStorage): Portfolio {
   return { holdings, fixedIncome: { ...fi, amount } }
 }
 
+let writeListener: ((key: string) => void) | null = null
+
+// A sincronização (app publicado) escuta cada gravação para enviá-la ao banco.
+export function setWriteListener(fn: ((key: string) => void) | null): void {
+  writeListener = fn
+}
+
 // Navegador privado ou sem espaço pode recusar a gravação: devolve false em vez de quebrar a tela.
 function write(store: Storage, key: string, data: unknown): boolean {
   try {
     store.setItem(key, JSON.stringify(data))
+    writeListener?.(key)
     return true
   } catch {
     return false
