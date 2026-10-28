@@ -9,6 +9,7 @@ const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000).toISOStri
 const news = (tone: Tone, h: number, id = `${tone}${h}`): NewsItem => ({
   id,
   title: id,
+  link: null,
   source: 's',
   publishedAt: hoursAgo(h),
   tags: [],

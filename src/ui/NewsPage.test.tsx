@@ -6,6 +6,7 @@ import type { NewsItem } from '../data/news'
 const item = (title: string, tag: string): NewsItem => ({
   id: title,
   title,
+  link: null,
   source: 'Fonte',
   publishedAt: new Date().toISOString(),
   tags: [tag],

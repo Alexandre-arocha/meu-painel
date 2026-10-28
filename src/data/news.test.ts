@@ -1,4 +1,13 @@
-import { GENERAL_QUERIES, createGoogleNewsSource, dedupe, parseRss, sortNews, type NewsItem } from './news'
+import {
+  GENERAL_QUERIES,
+  createGoogleNewsSource,
+  dedupe,
+  markPortfolio,
+  parseRss,
+  safeLink,
+  sortNews,
+  type NewsItem,
+} from './news'
 import { lexiconClassifier } from '../domain/tone'
 
 const xml = `<?xml version="1.0"?><rss><channel>
@@ -23,6 +32,7 @@ test('parseRss usa data inválida como null sem quebrar', () => {
 const item = (title: string, publishedAt: string | null): NewsItem => ({
   id: title,
   title,
+  link: null,
   source: 's',
   publishedAt,
   tags: [],
@@ -56,6 +66,28 @@ test('fonte de notícias busca os 4 termos, remove repetidas e classifica o tom'
   expect(calls).toBe(4)
   expect(items).toHaveLength(2)
   expect(items[0]).toMatchObject({ title: 'Banco do Brasil tem lucro', tone: 'positive' })
+})
+
+test('safeLink aceita http e https e rejeita javascript:, data:, relativo e sem protocolo', () => {
+  expect(safeLink('https://exemplo.com/a')).toBe('https://exemplo.com/a')
+  expect(safeLink('http://exemplo.com/a')).toBe('http://exemplo.com/a')
+  for (const bad of ['javascript:alert(1)', 'data:text/html,oi', '/noticia/1', 'www.exemplo.com', '', null, undefined]) {
+    expect(safeLink(bad)).toBeNull()
+  }
+})
+
+test('parseRss guarda o link seguro de cada item', () => {
+  expect(parseRss(xml, 'BBAS3')[0].link).toBe('http://a/1')
+})
+
+test('markPortfolio marca notícias que citam BB, BBAS3, B3 ou B3SA3', () => {
+  const out = markPortfolio([
+    { ...item('Banco do Brasil anuncia dividendos', null), tags: ['Mercado'] },
+    item('Ibovespa sobe', null),
+    item('B3 tem recorde de investidores', null),
+    { ...item('BBAS3 em alta', null), tags: ['Carteira'] },
+  ])
+  expect(out.map((i) => i.tags)).toEqual([['Mercado', 'Carteira'], [], ['Carteira'], ['Carteira']])
 })
 
 test('fonte geral busca mercado, concursos e tecnologia', async () => {

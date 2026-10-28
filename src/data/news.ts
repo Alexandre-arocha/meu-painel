@@ -3,6 +3,7 @@ import { normalize, type Tone, type ToneClassifier } from '../domain/tone'
 export type NewsItem = {
   id: string
   title: string
+  link: string | null
   source: string
   publishedAt: string | null
   tags: string[]
@@ -32,6 +33,26 @@ export const GENERAL_QUERIES: NewsQuery[] = [
   { q: 'tecnologia', tag: 'Tecnologia' },
 ]
 
+// Links de RSS vêm de fora: só http(s) absoluto vira link, para nunca virar javascript: na tela.
+export function safeLink(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null
+  } catch {
+    return null
+  }
+}
+
+const PORTFOLIO_TERMS = /\b(banco do brasil|bbas3|b3sa3|b3)\b/
+
+// Marca com a tag "Carteira" as notícias cujo título cita as ações do dono.
+export function markPortfolio(items: NewsItem[]): NewsItem[] {
+  return items.map((i) =>
+    !i.tags.includes('Carteira') && PORTFOLIO_TERMS.test(normalize(i.title)) ? { ...i, tags: [...i.tags, 'Carteira'] } : i,
+  )
+}
+
 export function parseRss(xml: string, tag: string): Omit<NewsItem, 'tone' | 'reason'>[] {
   const doc = new DOMParser().parseFromString(xml, 'text/xml')
   const text = (el: Element, name: string) => el.getElementsByTagName(name)[0]?.textContent?.trim() ?? ''
@@ -43,6 +64,7 @@ export function parseRss(xml: string, tag: string): Omit<NewsItem, 'tone' | 'rea
     out.push({
       id: text(el, 'guid') || text(el, 'link') || title,
       title,
+      link: safeLink(text(el, 'link')),
       source: text(el, 'source'),
       publishedAt: Number.isNaN(time) ? null : new Date(time).toISOString(),
       tags: [tag],
