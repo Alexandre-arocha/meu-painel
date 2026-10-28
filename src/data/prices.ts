@@ -28,16 +28,22 @@ export function isStale(updatedAt: string, now: Date): boolean {
 
 type Raw = Record<string, unknown>
 
+export const createProxyPriceProvider = (fetchFn: typeof fetch = fetch, now?: () => Date): PriceProvider =>
+  createBrapiProvider(undefined, fetchFn, now, '/api/brapi')
+
 export function createBrapiProvider(
   token: string | undefined,
   fetchFn: typeof fetch = fetch,
   now: () => Date = () => new Date(),
+  base: string = BASE,
 ): PriceProvider {
-  const get = (url: string) => fetchFn(url, { headers: { Authorization: `Bearer ${token}` } })
+  // Pelo servidor (/api/brapi) o token fica na Vercel: o navegador não manda Authorization.
+  const viaServer = base !== BASE
+  const get = (url: string) => fetchFn(url, viaServer ? {} : { headers: { Authorization: `Bearer ${token}` } })
 
   async function intraday(symbol: string): Promise<Quote['intraday']> {
     try {
-      const res = await get(`${BASE}/historical?symbols=${symbol}&range=1d&interval=15m`)
+      const res = await get(`${base}/historical?symbols=${symbol}&range=1d&interval=15m`)
       if (!res.ok) return []
       const body = (await res.json()) as { results?: Raw[] }
       const rows = (body.results?.[0]?.data ?? []) as { date: number; close: number | null }[]
@@ -51,9 +57,10 @@ export function createBrapiProvider(
 
   return {
     async getQuotes(symbols) {
-      if (!token) throw new Error('token ausente')
-      const res = await get(`${BASE}/quote?symbols=${symbols.join(',')}`)
-      if (res.status === 401) throw new Error('token inválido')
+      if (!viaServer && !token) throw new Error('token ausente')
+      const res = await get(`${base}/quote?symbols=${symbols.join(',')}`)
+      if (res.status === 401) throw new Error(viaServer ? 'sessão expirada; entre de novo' : 'token inválido')
+      if (viaServer && res.status === 503) throw new Error('token da brapi não cadastrado na Vercel')
       if (!res.ok) throw new Error(`erro ao buscar preços (${res.status})`)
       const body = (await res.json()) as { results?: { symbol: string; data: Raw }[] }
       return Promise.all(

@@ -1,4 +1,4 @@
-import { createBrapiProvider, isStale } from './prices'
+import { createBrapiProvider, createProxyPriceProvider, isStale } from './prices'
 
 const NOW = new Date('2026-10-28T14:00:00Z') // quarta, 11:00 em Brasília
 
@@ -70,6 +70,22 @@ test('getQuotes ignora cotação sem preço válido em vez de devolver NaN', asy
   })) as unknown as typeof fetch
   const qs = await createBrapiProvider('tok', f, () => NOW).getQuotes(['BBAS3', 'B3SA3'])
   expect(qs.map((q) => q.symbol)).toEqual(['B3SA3'])
+})
+
+test('provedor do servidor chama /api/brapi sem Authorization', async () => {
+  const calls: { url: string; auth: string | null }[] = []
+  const f = (async (url: string, init?: RequestInit) => {
+    calls.push({ url: String(url), auth: new Headers(init?.headers).get('authorization') })
+    return fakeFetch()(url)
+  }) as unknown as typeof fetch
+  const [q] = await createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3'])
+  expect(q.price).toBe(30)
+  expect(calls[0]).toEqual({ url: '/api/brapi/quote?symbols=BBAS3', auth: null })
+})
+
+test('503 do servidor vira mensagem de token não cadastrado', async () => {
+  const f = (async () => ({ ok: false, status: 503, json: async () => ({}) })) as unknown as typeof fetch
+  await expect(createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3'])).rejects.toThrow('token da brapi não cadastrado na Vercel')
 })
 
 test('sem token lança erro "token ausente"', async () => {

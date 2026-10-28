@@ -17,9 +17,10 @@ type Props = {
   news: NewsSource
   now?: () => Date
   store?: Storage
+  serverPrices?: boolean // app publicado: o token mora na Vercel, sem campo de token aqui
 }
 
-export function InvestmentsPage({ makePrices, news, now = () => new Date(), store = localStorage }: Props) {
+export function InvestmentsPage({ makePrices, news, now = () => new Date(), store = localStorage, serverPrices = false }: Props) {
   const [portfolio, setPortfolio] = useState<Portfolio>(() => loadPortfolio(store))
   const [settings, setSettings] = useState(() => loadSettings(store))
   const [quotes, setQuotes] = useState<Quote[]>([])
@@ -111,6 +112,7 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
           }}
         />
         <NewsList items={items} now={current} />
+        {!serverPrices && (
         <section className="card wide" aria-label="Configurações">
           <h2>Configurações</h2>
           <form onSubmit={saveToken}>
@@ -122,6 +124,7 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
             <button type="submit">Salvar token</button>
           </form>
         </section>
+        )}
       </div>
       <p className="notice">Sinal de apoio, não é previsão garantida.</p>
     </div>

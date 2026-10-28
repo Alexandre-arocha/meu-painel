@@ -52,6 +52,13 @@ test('mostra preço e variação de BBAS3', async () => {
   expect(within(region).getByText('+1,50%')).toBeInTheDocument()
 })
 
+test('com preços no servidor não aparece campo de token', async () => {
+  const fromServer = (): PriceProvider => ({ getQuotes: async (symbols) => symbols.map((s) => quote(s)) })
+  render(<InvestmentsPage makePrices={fromServer} news={noNews} serverPrices />)
+  await screen.findByRole('region', { name: 'BBAS3' })
+  expect(screen.queryByLabelText('Token da brapi')).toBeNull()
+})
+
 test('mostra "dado velho" quando stale é true', async () => {
   withToken()
   render(<InvestmentsPage makePrices={okPrices({ stale: true })} news={noNews} />)
