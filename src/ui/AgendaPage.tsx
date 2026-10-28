@@ -1,6 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import { loadEvents, loadRoutine, saveEvents, saveRoutine } from '../data/storage'
-import { isDate, isTime, monthGrid, planDay, type AgendaEvent, type EventKind, type Routine } from '../domain/agenda'
+import {
+  countdownLabel,
+  importantDates,
+  isDate,
+  isTime,
+  monthGrid,
+  newEventId,
+  occursOn,
+  planDay,
+  shiftMonth,
+  type AgendaEvent,
+  type EventKind,
+  type Routine,
+} from '../domain/agenda'
 import { localDate } from './format'
 
 const KINDS: { id: EventKind; label: string }[] = [
@@ -9,24 +22,39 @@ const KINDS: { id: EventKind; label: string }[] = [
   { id: 'prova', label: 'Prova / concurso' },
   { id: 'mercado', label: 'Mercado' },
 ]
+const LEGEND = [
+  { kind: 'estudo', label: 'Estudo' },
+  { kind: 'mercado', label: 'Mercado' },
+  { kind: 'trabalho', label: 'Trabalho' },
+  { kind: 'pessoal', label: 'Pessoal e provas' },
+]
 const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
 const brDate = (d: string) => d.split('-').reverse().join('/')
+const isoDay = (year: number, month: number, day: number) =>
+  `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+const monthOf = (date: string) => ({ year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) - 1 })
+const toggle = (days: number[], day: number, on: boolean) => (on ? [...days, day].sort((a, b) => a - b) : days.filter((d) => d !== day))
+
+type Form = { title: string; date: string; time: string; duration: string; kind: EventKind; repeat: number[] }
 
 export function AgendaPage({ now = () => new Date(), store = localStorage }: { now?: () => Date; store?: Storage }) {
   const today = localDate(now())
   const [events, setEvents] = useState<AgendaEvent[]>(() => loadEvents(store))
   const [routine, setRoutine] = useState<Routine>(() => loadRoutine(store))
-  const [form, setForm] = useState({ title: '', date: today, time: '', kind: 'pessoal' as EventKind })
+  const [selected, setSelected] = useState(today)
+  const [view, setView] = useState(() => monthOf(today))
+  const [form, setForm] = useState<Form>({ title: '', date: today, time: '', duration: '60', kind: 'pessoal', repeat: [] })
   const [formError, setFormError] = useState('')
   const [draft, setDraft] = useState({ ...routine, studyMinutes: String(routine.studyMinutes) })
   const [routineMsg, setRoutineMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const [year, month] = today.split('-').map(Number)
-  const plan = planDay(today, routine, events)
+  const plan = planDay(selected, routine, events)
+  const important = importantDates(events, today)
+  const weekly = events.filter((e) => e.weekdays?.length)
   const upcoming = events
-    .filter((e) => e.date >= today)
+    .filter((e) => !e.weekdays?.length && e.date >= today)
     .sort((a, b) => `${a.date}${a.time ?? ''}`.localeCompare(`${b.date}${b.time ?? ''}`))
 
   function save(list: AgendaEvent[]) {
@@ -34,17 +62,37 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
     saveEvents(list, store)
   }
 
+  function selectDay(date: string) {
+    setSelected(date)
+    setForm((f) => ({ ...f, date }))
+  }
+
+  function backToToday() {
+    selectDay(today)
+    setView(monthOf(today))
+  }
+
   function add(e: FormEvent) {
     e.preventDefault()
     if (!form.title.trim()) return setFormError('informe o título')
     if (!isDate(form.date)) return setFormError('data inválida')
     if (form.time && !isTime(form.time)) return setFormError('horário inválido')
+    const duration = Number(form.duration)
+    if (!/^\d+$/.test(form.duration) || duration < 5 || duration > 720) return setFormError('duração entre 5 e 720 minutos')
     setFormError('')
     save([
       ...events,
-      { id: crypto.randomUUID(), title: form.title.trim(), date: form.date, ...(form.time ? { time: form.time } : {}), kind: form.kind },
+      {
+        id: newEventId(),
+        title: form.title.trim(),
+        date: form.date,
+        kind: form.kind,
+        ...(form.time ? { time: form.time } : {}),
+        ...(duration !== 60 ? { durationMin: duration } : {}),
+        ...(form.repeat.length ? { weekdays: form.repeat } : {}),
+      },
     ])
-    setForm({ ...form, title: '', time: '' })
+    setForm({ ...form, title: '', time: '', duration: '60', repeat: [] })
   }
 
   function saveRoutineForm(e: FormEvent) {
@@ -61,13 +109,28 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
     setRoutineMsg({ ok: true, text: 'Rotina salva.' })
   }
 
+  const eventRow = (e: AgendaEvent) => (
+    <li key={e.id} className="item">
+      <span>
+        <span className="num">
+          {e.weekdays?.length ? e.weekdays.map((d) => WEEK[d]).join(', ') : brDate(e.date)}
+          {e.time ? ` ${e.time}` : ''}
+        </span>{' '}
+        {e.title}
+      </span>
+      <button type="button" className="ghost" aria-label={`Remover ${e.title}`} onClick={() => save(events.filter((x) => x.id !== e.id))}>
+        Remover
+      </button>
+    </li>
+  )
+
   return (
     <div className="page">
       <div className="grid">
-        <section className="card" aria-label="Hoje">
-          <h2>Hoje, montado a partir da sua rotina</h2>
+        <section className="card" aria-label="Plano do dia">
+          <h2>{selected === today ? 'Hoje, montado a partir da sua rotina' : `Plano de ${brDate(selected)}`}</h2>
           {plan.length === 0 ? (
-            <p className="muted">Nada planejado.</p>
+            <p className="muted">Nada planejado para este dia.</p>
           ) : (
             <ul className="tl">
               {plan.map((b, i) => (
@@ -77,32 +140,77 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
               ))}
             </ul>
           )}
+          <ul className="legend" aria-label="Legenda das cores">
+            {LEGEND.map((l) => (
+              <li key={l.kind} className={l.kind}>
+                {l.label}
+              </li>
+            ))}
+          </ul>
+          {selected !== today && (
+            <button type="button" className="ghost" onClick={backToToday}>
+              Voltar para hoje
+            </button>
+          )}
         </section>
 
         <section className="card" aria-label="Calendário">
-          <h2>
-            {MONTHS[month - 1]} de {year}
-          </h2>
+          <div className="cal-head">
+            <button type="button" className="ghost icon" aria-label="Mês anterior" onClick={() => setView(shiftMonth(view.year, view.month, -1))}>
+              ‹
+            </button>
+            <h2>
+              {MONTHS[view.month]} de {view.year}
+            </h2>
+            <button type="button" className="ghost icon" aria-label="Próximo mês" onClick={() => setView(shiftMonth(view.year, view.month, 1))}>
+              ›
+            </button>
+          </div>
           <div className="cal">
             {WEEK.map((w) => (
               <span key={w} className="h" aria-hidden="true">
                 {w[0]}
               </span>
             ))}
-            {monthGrid(year, month - 1)
+            {monthGrid(view.year, view.month)
               .flat()
               .map((d, i) => {
                 if (!d) return <span key={i} />
-                const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                const n = events.filter((e) => e.date === date).length
+                const date = isoDay(view.year, view.month, d)
+                const n = events.filter((e) => occursOn(e, date)).length
                 return (
-                  <span key={i} className={`d${n ? ' has' : ''}${date === today ? ' today' : ''}`} title={n ? `${n} compromisso(s)` : undefined}>
+                  <button
+                    key={i}
+                    type="button"
+                    className={`${n ? 'has' : ''}${date === today ? ' today' : ''}`}
+                    aria-pressed={date === selected}
+                    aria-label={`${d} de ${MONTHS[view.month]}${n ? `, ${n} compromisso${n > 1 ? 's' : ''}` : ''}`}
+                    onClick={() => selectDay(date)}
+                  >
                     {d}
-                  </span>
+                  </button>
                 )
               })}
           </div>
-          <p className="muted">Dias com traço azul têm compromisso.</p>
+          <p className="muted">Dias com traço azul têm compromisso. Toque num dia para ver o plano dele.</p>
+        </section>
+
+        <section className="card" aria-label="Datas importantes">
+          <h2>Datas importantes</h2>
+          {important.length === 0 ? (
+            <p className="muted">Cadastre provas e eventos de mercado com o tipo "Prova / concurso" ou "Mercado" para ver a contagem aqui.</p>
+          ) : (
+            <ul className="list">
+              {important.map(({ event, days }) => (
+                <li key={event.id} className="item">
+                  <span>
+                    <span className="num">{brDate(event.date)}</span> {event.title}
+                  </span>
+                  <span className="pill warn">{countdownLabel(days)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="card" aria-label="Novo compromisso">
@@ -121,17 +229,34 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
                 <label htmlFor="ev-time">Horário (opcional)</label>
                 <input id="ev-time" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
               </div>
+              <div className="field">
+                <label htmlFor="ev-duration">Duração (min)</label>
+                <input id="ev-duration" inputMode="numeric" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
+              </div>
+              <div className="field">
+                <label htmlFor="ev-kind">Tipo</label>
+                <select id="ev-kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as EventKind })}>
+                  {KINDS.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="field">
-              <label htmlFor="ev-kind">Tipo</label>
-              <select id="ev-kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as EventKind })}>
-                {KINDS.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <fieldset className="days">
+              <legend>Repetir toda semana</legend>
+              {WEEK.map((w, i) => (
+                <label key={w}>
+                  <input
+                    type="checkbox"
+                    checked={form.repeat.includes(i)}
+                    onChange={(e) => setForm({ ...form, repeat: toggle(form.repeat, i, e.target.checked) })}
+                  />
+                  {w}
+                </label>
+              ))}
+            </fieldset>
             {formError && <p className="err">{formError}</p>}
             <button type="submit">Adicionar</button>
           </form>
@@ -139,25 +264,12 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
 
         <section className="card" aria-label="Próximos compromissos">
           <h2>Próximos compromissos</h2>
-          {upcoming.length === 0 ? (
-            <p className="muted">Nada marcado.</p>
-          ) : (
-            <ul className="list">
-              {upcoming.map((e) => (
-                <li key={e.id} className="item">
-                  <span>
-                    <span className="num">
-                      {brDate(e.date)}
-                      {e.time ? ` ${e.time}` : ''}
-                    </span>{' '}
-                    {e.title}
-                  </span>
-                  <button type="button" className="ghost" aria-label={`Remover ${e.title}`} onClick={() => save(events.filter((x) => x.id !== e.id))}>
-                    Remover
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {upcoming.length === 0 ? <p className="muted">Nada marcado.</p> : <ul className="list">{upcoming.map(eventRow)}</ul>}
+          {weekly.length > 0 && (
+            <>
+              <h3 className="sub">Toda semana</h3>
+              <ul className="list">{weekly.map(eventRow)}</ul>
+            </>
           )}
         </section>
 
@@ -181,12 +293,7 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
                   <input
                     type="checkbox"
                     checked={draft.workDays.includes(i)}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        workDays: e.target.checked ? [...draft.workDays, i].sort() : draft.workDays.filter((d) => d !== i),
-                      })
-                    }
+                    onChange={(e) => setDraft({ ...draft, workDays: toggle(draft.workDays, i, e.target.checked) })}
                   />
                   {w}
                 </label>

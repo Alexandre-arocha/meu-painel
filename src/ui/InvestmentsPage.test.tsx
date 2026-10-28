@@ -33,6 +33,7 @@ const newsWith = (items: NewsItem[]): NewsSource => ({ fetchNews: async () => it
 const item = (title: string, tone: NewsItem['tone']): NewsItem => ({
   id: title,
   title,
+  link: null,
   source: 'Fonte',
   publishedAt: new Date().toISOString(),
   tags: ['BBAS3'],

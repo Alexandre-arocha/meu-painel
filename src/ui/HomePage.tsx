@@ -1,6 +1,7 @@
 import { SEED_QUESTIONS } from '../data/questions'
-import { loadAttempts, loadCustomQuestions, loadEvents, loadQuotes, loadRoutine } from '../data/storage'
-import { planDay } from '../domain/agenda'
+import { safeLink } from '../data/news'
+import { loadAttempts, loadCustomQuestions, loadEvents, loadNews, loadQuotes, loadRoutine } from '../data/storage'
+import { countdownLabel, importantDates, planDay } from '../domain/agenda'
 import { wrongQuestions } from '../domain/study'
 import { localDate, money, pct } from './format'
 
@@ -12,7 +13,10 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
   const attempts = loadAttempts(store)
   const doneToday = attempts.filter((a) => localDate(new Date(a.at)) === today).length
   const pending = wrongQuestions([...SEED_QUESTIONS, ...loadCustomQuestions(store)], attempts).length
-  const plan = planDay(today, loadRoutine(store), loadEvents(store))
+  const events = loadEvents(store)
+  const plan = planDay(today, loadRoutine(store), events)
+  const next = importantDates(events, today, 1)[0]
+  const headlines = loadNews(store)?.items.slice(0, 3) ?? []
 
   return (
     <div className="page">
@@ -69,6 +73,14 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
               ))}
             </ul>
           )}
+          {next && (
+            <div className="row">
+              <span>Próxima data</span>
+              <span>
+                {next.event.title} · {countdownLabel(next.days)}
+              </span>
+            </div>
+          )}
           <a className="more" href="#/agenda">
             Abrir agenda
           </a>
@@ -76,7 +88,26 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
 
         <section className="card" aria-label="Resumo de notícias">
           <h2>Notícias</h2>
-          <p className="muted">Mercado, concursos e tecnologia num feed só, com filtro por tema.</p>
+          {headlines.length === 0 ? (
+            <p className="muted">Abra a aba Notícias para buscar mercado, concursos e tecnologia.</p>
+          ) : (
+            <ul className="list">
+              {headlines.map((n) => {
+                const href = safeLink(n.link)
+                return (
+                  <li key={n.id} className="headline">
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer" title="Abre em nova aba">
+                        {n.title}
+                      </a>
+                    ) : (
+                      n.title
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
           <a className="more" href="#/noticias">
             Abrir notícias
           </a>

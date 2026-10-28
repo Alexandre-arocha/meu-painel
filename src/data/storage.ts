@@ -1,5 +1,6 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
 import type { Quote } from './prices'
+import type { NewsItem } from './news'
 import { parseQuestions, type Attempt, type Question } from '../domain/study'
 import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
 
@@ -109,6 +110,11 @@ export function loadEvents(store: Storage = localStorage): AgendaEvent[] {
       typeof e.date === 'string' &&
       isDate(e.date) &&
       (e.time === undefined || (typeof e.time === 'string' && isTime(e.time))) &&
+      (e.durationMin === undefined || (Number.isInteger(e.durationMin) && e.durationMin >= 5 && e.durationMin <= 720)) &&
+      (e.weekdays === undefined ||
+        (Array.isArray(e.weekdays) &&
+          e.weekdays.length > 0 &&
+          e.weekdays.every((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))) &&
       EVENT_KINDS.includes(e.kind),
   )
 }
@@ -136,4 +142,34 @@ export function loadRoutine(store: Storage = localStorage): Routine {
 
 export function saveRoutine(routine: Routine, store: Storage = localStorage): boolean {
   return write(store, ROUTINE_KEY, routine)
+}
+
+const NEWS_KEY = 'painel:v1:lastNews'
+const MAX_NEWS = 50
+const TONES = ['positive', 'neutral', 'negative']
+
+export type NewsCache = { at: string; items: NewsItem[] }
+
+export function saveNews(cache: NewsCache, store: Storage = localStorage): boolean {
+  return write(store, NEWS_KEY, { at: cache.at, items: cache.items.slice(0, MAX_NEWS) })
+}
+
+export function loadNews(store: Storage = localStorage): NewsCache | null {
+  const d = readJson(store, NEWS_KEY) as Partial<NewsCache> | null
+  if (!d || typeof d.at !== 'string' || !Array.isArray(d.items)) return null
+  const items = d.items.filter(
+    (i): i is NewsItem =>
+      !!i &&
+      typeof i.id === 'string' &&
+      typeof i.title === 'string' &&
+      i.title.trim() !== '' &&
+      (i.link === null || typeof i.link === 'string') &&
+      typeof i.source === 'string' &&
+      (i.publishedAt === null || typeof i.publishedAt === 'string') &&
+      Array.isArray(i.tags) &&
+      i.tags.every((t) => typeof t === 'string') &&
+      TONES.includes(i.tone) &&
+      typeof i.reason === 'string',
+  )
+  return { at: d.at, items }
 }

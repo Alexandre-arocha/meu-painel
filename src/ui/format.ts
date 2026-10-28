@@ -7,6 +7,9 @@ export const pct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2).replace('.'
 export const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
+export const dayTime = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
 const two = (n: number) => String(n).padStart(2, '0')
 
 // Data local no formato AAAA-MM-DD (a agenda e a meta diária usam o dia do aparelho, não UTC).
