@@ -88,6 +88,21 @@ test('datas importantes mostram a contagem', async () => {
   expect(within(screen.getByRole('region', { name: 'Datas importantes' })).getByText('faltam 11 dias')).toBeInTheDocument()
 })
 
+test('adicionar compromisso funciona sem crypto.randomUUID (http no celular)', async () => {
+  const desc = Object.getOwnPropertyDescriptor(crypto, 'randomUUID')
+  Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true })
+  try {
+    const user = userEvent.setup()
+    render(<AgendaPage now={now} />)
+    await user.type(screen.getByLabelText('Título'), 'Dentista')
+    await user.click(screen.getByRole('button', { name: 'Adicionar' }))
+    expect(loadEvents()).toMatchObject([{ title: 'Dentista' }])
+  } finally {
+    if (desc) Object.defineProperty(crypto, 'randomUUID', desc)
+    else delete (crypto as { randomUUID?: unknown }).randomUUID
+  }
+})
+
 test('remover compromisso tira da lista', async () => {
   const user = userEvent.setup()
   render(<AgendaPage now={now} />)

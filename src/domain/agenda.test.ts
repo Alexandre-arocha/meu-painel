@@ -6,6 +6,7 @@ import {
   isDate,
   isTime,
   monthGrid,
+  newEventId,
   occursOn,
   planDay,
   shiftMonth,
@@ -102,6 +103,20 @@ test('importantDates lista só provas e mercado futuras, em ordem', () => {
 test('shiftMonth atravessa a virada do ano', () => {
   expect(shiftMonth(2026, 11, 1)).toEqual({ year: 2027, month: 0 })
   expect(shiftMonth(2026, 0, -1)).toEqual({ year: 2025, month: 11 })
+})
+
+test('newEventId funciona sem crypto.randomUUID (página aberta por http no celular)', () => {
+  const desc = Object.getOwnPropertyDescriptor(crypto, 'randomUUID')
+  Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true })
+  try {
+    const a = newEventId()
+    const b = newEventId()
+    expect(a).toMatch(/\S+/)
+    expect(a).not.toBe(b)
+  } finally {
+    if (desc) Object.defineProperty(crypto, 'randomUUID', desc)
+    else delete (crypto as { randomUUID?: unknown }).randomUUID
+  }
 })
 
 test('monthGrid de agosto de 2026 tem 6 semanas', () => {

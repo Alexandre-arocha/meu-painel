@@ -19,6 +19,10 @@ const DAY_OFF_STUDY = 9 * 60
 
 export const isTime = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)
 
+// crypto.randomUUID só existe em página segura (https ou localhost); aberto por http no celular, usa o plano B.
+export const newEventId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+
 export function isDate(d: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false
   const t = new Date(`${d}T00:00:00Z`)

@@ -6,6 +6,7 @@ import {
   isDate,
   isTime,
   monthGrid,
+  newEventId,
   occursOn,
   planDay,
   shiftMonth,
@@ -82,7 +83,7 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
     save([
       ...events,
       {
-        id: crypto.randomUUID(),
+        id: newEventId(),
         title: form.title.trim(),
         date: form.date,
         kind: form.kind,
