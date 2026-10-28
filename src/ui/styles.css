@@ -62,7 +62,7 @@ button { min-height: 44px; padding: 8px 18px; border: 0; border-radius: 10px; ba
 .bar i { display: block; height: 100%; background: var(--ac); }
 .notice { margin-top: var(--gap); text-align: center; color: var(--mut); font-size: 0.875rem; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 0 4px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0 4px; }
 .tabs a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid var(--bd); border-radius: 10px; background: var(--card); color: var(--tx); text-decoration: none; white-space: nowrap; }
 .tabs a[aria-current='page'] { background: var(--ac); color: var(--ac-tx); border-color: var(--ac); }
 .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--bd); }
