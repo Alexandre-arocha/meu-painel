@@ -23,6 +23,17 @@ Abra o endereço que aparecer no terminal. Para ver os preços, crie um token gr
 
 Testes: `npm test`. Build: `npm run build`.
 
+## Como publicar (Vercel)
+
+O projeto `meu-painel` já está na Vercel, ligado a este repositório: cada merge na `main` publica sozinho. Publicado, o painel pede uma senha, sincroniza os dados entre aparelhos num banco Postgres da Neon e busca preços e notícias pelas funções em `api/`.
+
+Passos que só o dono faz (senhas e tokens nunca vão para o código):
+
+1. Na Vercel, projeto `meu-painel` → **Storage** → criar ou conectar um banco **Neon** (cria a variável `DATABASE_URL`).
+2. **Settings → Environment Variables**: cadastrar `APP_PASSWORD` (senha forte, só sua) e `BRAPI_TOKEN`, para Production e Preview.
+3. **Deployments → Redeploy** para as variáveis valerem.
+4. Entre primeiro no aparelho que já tem os seus dados (o computador): o que o banco ainda não tem sobe dele. Depois entre no celular.
+
 ## Importar questões
 
 Cole na aba Estudos uma lista em JSON neste formato (`answer` é o índice da opção certa, começando em 0):
@@ -33,7 +44,7 @@ Cole na aba Estudos uma lista em JSON neste formato (`answer` é o índice da op
 
 ## Limites conhecidos
 
-- As notícias passam por um proxy do servidor de desenvolvimento; publicar o app exige um proxy no servidor.
+- Sincronização: vale a última gravação; editar a mesma coisa em dois aparelhos ao mesmo tempo mantém só uma das versões.
 - O tom das notícias usa palavras-chave e marca a maioria como neutra.
 - O aviso de dado velho não conhece os feriados da B3.
 

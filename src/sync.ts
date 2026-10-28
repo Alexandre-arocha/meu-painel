@@ -16,15 +16,15 @@ function valueToSend(key: string, raw: string): unknown {
   return value
 }
 
-export async function pullAll(fetchFn: typeof fetch, store: Storage): Promise<'empty' | 'pulled'> {
+// Devolve as chaves que vieram do banco (lista vazia: banco ainda vazio).
+export async function pullAll(fetchFn: typeof fetch, store: Storage): Promise<string[]> {
   const res = await fetchFn('/api/data')
   if (!res.ok) throw new Error(`sincronização: ${res.status}`)
   const { items } = (await res.json()) as { items?: Record<string, unknown> }
   const keys = Object.keys(items ?? {}).filter(isSyncKey)
-  if (keys.length === 0) return 'empty'
   // setItem direto: o que veio do banco não precisa voltar para o banco.
   for (const key of keys) store.setItem(key, JSON.stringify(items![key]))
-  return 'pulled'
+  return keys
 }
 
 export function createSync(fetchFn: typeof fetch, store: Storage) {
@@ -78,7 +78,11 @@ export function createSync(fetchFn: typeof fetch, store: Storage) {
     }
   }
 
-  return { queue, flush, queueAll: () => SYNC_KEYS.filter((k) => store.getItem(k) !== null).forEach(queue) }
+  // Sobe as chaves que existem no aparelho mas ainda não estão no banco.
+  const queueMissing = (inBank: string[]) =>
+    SYNC_KEYS.filter((k) => !inBank.includes(k) && store.getItem(k) !== null).forEach(queue)
+
+  return { queue, flush, queueMissing }
 }
 
 export async function startSync(fetchFn: typeof fetch, store: Storage, events: EventTarget = window): Promise<void> {
@@ -89,8 +93,6 @@ export async function startSync(fetchFn: typeof fetch, store: Storage, events: E
   })
   events.addEventListener('online', () => void sync.flush())
   await sync.flush() // primeiro o que ficou pendente de antes, para o banco não sobrescrever
-  if ((await pullAll(fetchFn, store)) === 'empty') {
-    sync.queueAll() // primeira vez: o banco recebe o que já existe no aparelho
-    await sync.flush()
-  }
+  sync.queueMissing(await pullAll(fetchFn, store)) // banco vazio ou incompleto recebe o que só este aparelho tem
+  await sync.flush()
 }

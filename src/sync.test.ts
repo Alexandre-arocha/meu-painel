@@ -33,14 +33,14 @@ test('listener recebe a chave gravada e não é chamado se a gravação falha', 
 
 test('pullAll grava os valores do banco', async () => {
   const api = fakeApi({ 'painel:v1:events': [{ id: '1' }], 'outra:chave': 1 })
-  expect(await pullAll(api.fetchFn, localStorage)).toBe('pulled')
+  expect(await pullAll(api.fetchFn, localStorage)).toEqual(['painel:v1:events'])
   expect(JSON.parse(localStorage.getItem('painel:v1:events')!)).toEqual([{ id: '1' }])
   expect(localStorage.getItem('outra:chave')).toBeNull()
 })
 
 test('pullAll com banco vazio não mexe nos dados locais', async () => {
   localStorage.setItem('painel:v1:events', '[{"id":"local"}]')
-  expect(await pullAll(fakeApi({}).fetchFn, localStorage)).toBe('empty')
+  expect(await pullAll(fakeApi({}).fetchFn, localStorage)).toEqual([])
   expect(localStorage.getItem('painel:v1:events')).toBe('[{"id":"local"}]')
 })
 
@@ -79,6 +79,15 @@ test('chave fora da lista não é enviada', async () => {
   sync.queue('painel:v1:lastNews')
   await sync.flush()
   expect(api.calls).toEqual([])
+})
+
+test('startSync envia as chaves que o banco ainda não tem e recebe as que ele tem', async () => {
+  localStorage.setItem('painel:v1:portfolio', '{"v":1}')
+  localStorage.setItem('painel:v1:routine', '{"studyMinutes":10}')
+  const api = fakeApi({ 'painel:v1:routine': { studyMinutes: 90 } })
+  await startSync(api.fetchFn, localStorage, new EventTarget())
+  expect(putKeys(api.calls)).toEqual(['painel:v1:portfolio'])
+  expect(JSON.parse(localStorage.getItem('painel:v1:routine')!)).toEqual({ studyMinutes: 90 })
 })
 
 test('startSync com banco vazio envia os dados locais e depois cada gravação', async () => {
