@@ -1,0 +1,129 @@
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { InvestmentsPage } from './InvestmentsPage'
+import { loadPortfolio, saveQuotes, saveSettings } from '../data/storage'
+import type { PriceProvider, Quote } from '../data/prices'
+import type { NewsItem, NewsSource } from '../data/news'
+
+const quote = (symbol: string, over: Partial<Quote> = {}): Quote => ({
+  symbol,
+  price: 30,
+  changePct: 1.5,
+  updatedAt: new Date().toISOString(),
+  stale: false,
+  intraday: [
+    { t: '2026-10-28T13:00:00Z', p: 29 },
+    { t: '2026-10-28T14:00:00Z', p: 30 },
+  ],
+  ...over,
+})
+
+const okPrices =
+  (over: Partial<Quote> = {}) =>
+  (token?: string): PriceProvider => ({
+    async getQuotes(symbols) {
+      if (!token) throw new Error('token ausente')
+      return symbols.map((s) => quote(s, over))
+    },
+  })
+
+const noNews: NewsSource = { fetchNews: async () => [] }
+const newsWith = (items: NewsItem[]): NewsSource => ({ fetchNews: async () => items })
+
+const item = (title: string, tone: NewsItem['tone']): NewsItem => ({
+  id: title,
+  title,
+  source: 'Fonte',
+  publishedAt: new Date().toISOString(),
+  tags: ['BBAS3'],
+  tone,
+  reason: 'palavra-chave',
+})
+
+beforeEach(() => localStorage.clear())
+const withToken = () => saveSettings({ brapiToken: 'tok' })
+
+test('mostra preço e variação de BBAS3', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  const region = await screen.findByRole('region', { name: 'BBAS3' })
+  expect(await within(region).findByText(/30,00/)).toBeInTheDocument()
+  expect(within(region).getByText('+1,50%')).toBeInTheDocument()
+})
+
+test('mostra "dado velho" quando stale é true', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices({ stale: true })} news={noNews} />)
+  const region = await screen.findByRole('region', { name: 'BBAS3' })
+  expect(await within(region).findByText('dado velho')).toBeInTheDocument()
+})
+
+test('sem token mostra campo para informar o token', async () => {
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  expect(await screen.findByLabelText('Token da brapi')).toBeInTheDocument()
+  expect(screen.getByText(/Informe o token/)).toBeInTheDocument()
+})
+
+test('API fora do ar mostra o último valor guardado marcado como velho', async () => {
+  withToken()
+  saveQuotes([quote('BBAS3', { price: 28 })])
+  const down = (): PriceProvider => ({
+    async getQuotes() {
+      throw new Error('erro ao buscar preços (500)')
+    },
+  })
+  render(<InvestmentsPage makePrices={down} news={noNews} />)
+  const region = await screen.findByRole('region', { name: 'BBAS3' })
+  expect(await within(region).findByText(/28,00/)).toBeInTheDocument()
+  expect(within(region).getByText('dado velho')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent('erro ao buscar preços')
+})
+
+test('quantidade inválida mostra mensagem e não salva', async () => {
+  withToken()
+  const user = userEvent.setup()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  await user.type(await screen.findByLabelText('Quantidade de BBAS3'), 'abc')
+  await user.click(screen.getByRole('button', { name: 'Salvar carteira' }))
+  expect(await screen.findByText('use apenas números positivos')).toBeInTheDocument()
+  expect(loadPortfolio(localStorage).holdings).toEqual([])
+})
+
+test('quantidades válidas são salvas', async () => {
+  withToken()
+  const user = userEvent.setup()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  await user.type(await screen.findByLabelText('Quantidade de BBAS3'), '10')
+  await user.type(screen.getByLabelText('Renda fixa (R$)'), '10.000,50')
+  await user.click(screen.getByRole('button', { name: 'Salvar carteira' }))
+  expect(loadPortfolio(localStorage)).toEqual({
+    holdings: [{ symbol: 'BBAS3', quantity: 10 }],
+    fixedIncome: { amount: 10000.5 },
+  })
+})
+
+test('carteira vazia mostra convite para informar quantidades', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  expect(await screen.findByText(/Informe suas quantidades/)).toBeInTheDocument()
+})
+
+test('lista de notícias mostra o tom de cada item', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices()} news={newsWith([item('Banco tem lucro', 'positive')])} />)
+  expect(await screen.findByText('Banco tem lucro')).toBeInTheDocument()
+  expect(screen.getAllByText('tom positivo').length).toBeGreaterThan(0)
+})
+
+test('mostra o aviso "Sinal de apoio, não é previsão garantida."', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  expect(await screen.findByText('Sinal de apoio, não é previsão garantida.')).toBeInTheDocument()
+})
+
+test('mercado fechado mostra "mercado fechado" no lugar do gráfico', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices({ intraday: [] })} news={noNews} />)
+  const region = await screen.findByRole('region', { name: 'BBAS3' })
+  expect(await within(region).findByText(/mercado fechado/)).toBeInTheDocument()
+})
