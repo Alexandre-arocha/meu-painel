@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
+import { setWriteListener } from '../data/storage'
 
 const makePrices = () => ({
   async getQuotes() {
@@ -12,6 +13,44 @@ const news = { fetchNews: async () => [] }
 beforeEach(() => {
   localStorage.clear()
   window.location.hash = ''
+  setWriteListener(null)
+})
+
+function authApi(loggedIn: boolean) {
+  const calls: string[] = []
+  const fetchFn = (async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET'
+    calls.push(`${method} ${url}`)
+    if (url === '/api/session') return new Response(null, { status: loggedIn ? 204 : 401 })
+    if (url === '/api/login') loggedIn = true
+    if (url === '/api/logout') loggedIn = false
+    if (url === '/api/data' && method === 'GET') return new Response(JSON.stringify({ items: {} }), { status: 200 })
+    return new Response(null, { status: 204 })
+  }) as unknown as typeof fetch
+  return { fetchFn, calls }
+}
+
+test('App com auth e sem sessão mostra a entrada', async () => {
+  render(<App auth fetchFn={authApi(false).fetchFn} makePrices={makePrices} news={news} />)
+  expect(await screen.findByLabelText('Senha')).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Início' })).toBeNull()
+})
+
+test('entrar sincroniza e mostra o Início', async () => {
+  const user = userEvent.setup()
+  const api = authApi(false)
+  render(<App auth fetchFn={api.fetchFn} makePrices={makePrices} news={news} />)
+  await user.type(await screen.findByLabelText('Senha'), 'qualquer')
+  await user.click(screen.getByRole('button', { name: 'Entrar' }))
+  expect(await screen.findByRole('link', { name: 'Início' })).toBeInTheDocument()
+  expect(api.calls).toContain('GET /api/data')
+})
+
+test('Sair volta para a entrada', async () => {
+  const user = userEvent.setup()
+  render(<App auth fetchFn={authApi(true).fetchFn} makePrices={makePrices} news={news} />)
+  await user.click(await screen.findByRole('button', { name: 'Sair' }))
+  expect(await screen.findByLabelText('Senha')).toBeInTheDocument()
 })
 
 test('App abre no Início com o título', () => {
