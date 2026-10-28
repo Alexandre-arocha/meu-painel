@@ -1,5 +1,6 @@
 import { SEED_QUESTIONS } from '../data/questions'
-import { loadAttempts, loadCustomQuestions, loadQuotes } from '../data/storage'
+import { loadAttempts, loadCustomQuestions, loadEvents, loadQuotes, loadRoutine } from '../data/storage'
+import { planDay } from '../domain/agenda'
 import { wrongQuestions } from '../domain/study'
 import { localDate, money, pct } from './format'
 
@@ -11,6 +12,7 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
   const attempts = loadAttempts(store)
   const doneToday = attempts.filter((a) => localDate(new Date(a.at)) === today).length
   const pending = wrongQuestions([...SEED_QUESTIONS, ...loadCustomQuestions(store)], attempts).length
+  const plan = planDay(today, loadRoutine(store), loadEvents(store))
 
   return (
     <div className="page">
@@ -51,6 +53,32 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
           </div>
           <a className="more" href="#/estudos">
             Abrir estudos
+          </a>
+        </section>
+
+        <section className="card" aria-label="Resumo da agenda">
+          <h2>Agenda de hoje</h2>
+          {plan.length === 0 ? (
+            <p className="muted">Nada para hoje.</p>
+          ) : (
+            <ul className="list">
+              {plan.slice(0, 4).map((b, i) => (
+                <li key={i}>
+                  <span className="num">{b.start || 'Dia todo'}</span> {b.title}
+                </li>
+              ))}
+            </ul>
+          )}
+          <a className="more" href="#/agenda">
+            Abrir agenda
+          </a>
+        </section>
+
+        <section className="card" aria-label="Resumo de notícias">
+          <h2>Notícias</h2>
+          <p className="muted">Mercado, concursos e tecnologia num feed só, com filtro por tema.</p>
+          <a className="more" href="#/noticias">
+            Abrir notícias
           </a>
         </section>
       </div>

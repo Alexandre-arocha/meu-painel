@@ -4,10 +4,18 @@ import { ago } from './format'
 const toneText = { positive: 'tom positivo', neutral: 'neutro', negative: 'tom negativo' } as const
 const toneClass = { positive: 'up', neutral: 'mut', negative: 'dn' } as const
 
-export function NewsList({ items, now }: { items: NewsItem[]; now: Date }) {
+export function NewsList({
+  items,
+  now,
+  title = 'Notícias das suas ações',
+}: {
+  items: NewsItem[]
+  now: Date
+  title?: string
+}) {
   return (
     <section className="card wide" aria-label="Notícias">
-      <h2>Notícias das suas ações</h2>
+      <h2>{title}</h2>
       {items.length === 0 ? (
         <p className="muted">Nenhuma notícia por enquanto.</p>
       ) : (

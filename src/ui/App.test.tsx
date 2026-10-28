@@ -28,6 +28,20 @@ test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => 
   expect(await screen.findByRole('alert')).toBeInTheDocument()
 })
 
+test('navegar para Agenda mostra o plano de hoje', async () => {
+  const user = userEvent.setup()
+  render(<App makePrices={makePrices} news={news} />)
+  await user.click(screen.getByRole('link', { name: 'Agenda' }))
+  expect(await screen.findByRole('heading', { name: 'Hoje, montado a partir da sua rotina' })).toBeInTheDocument()
+})
+
+test('navegar para Notícias mostra os filtros de tema', async () => {
+  const user = userEvent.setup()
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
+  await user.click(screen.getByRole('link', { name: 'Notícias' }))
+  expect(await screen.findByRole('button', { name: 'Concursos' })).toBeInTheDocument()
+})
+
 test('navegar para Estudos mostra a questão', async () => {
   const user = userEvent.setup()
   render(<App makePrices={makePrices} news={news} />)

@@ -1,6 +1,7 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
 import type { Quote } from './prices'
 import { parseQuestions, type Attempt, type Question } from '../domain/study'
+import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
 const SETTINGS_KEY = 'painel:v1:settings'
@@ -91,4 +92,48 @@ export function loadCustomQuestions(store: Storage = localStorage): Question[] {
 
 export function saveCustomQuestions(questions: Question[], store: Storage = localStorage): boolean {
   return write(store, QUESTIONS_KEY, questions)
+}
+
+const EVENTS_KEY = 'painel:v1:events'
+const ROUTINE_KEY = 'painel:v1:routine'
+
+export function loadEvents(store: Storage = localStorage): AgendaEvent[] {
+  const data = readJson(store, EVENTS_KEY)
+  if (!Array.isArray(data)) return []
+  return data.filter(
+    (e): e is AgendaEvent =>
+      !!e &&
+      typeof e.id === 'string' &&
+      typeof e.title === 'string' &&
+      e.title.trim() !== '' &&
+      typeof e.date === 'string' &&
+      isDate(e.date) &&
+      (e.time === undefined || (typeof e.time === 'string' && isTime(e.time))) &&
+      EVENT_KINDS.includes(e.kind),
+  )
+}
+
+export function saveEvents(events: AgendaEvent[], store: Storage = localStorage): boolean {
+  return write(store, EVENTS_KEY, events)
+}
+
+export function loadRoutine(store: Storage = localStorage): Routine {
+  const r = readJson(store, ROUTINE_KEY) as Partial<Routine> | null
+  const valid =
+    !!r &&
+    typeof r.workStart === 'string' &&
+    isTime(r.workStart) &&
+    typeof r.workEnd === 'string' &&
+    isTime(r.workEnd) &&
+    Array.isArray(r.workDays) &&
+    r.workDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) &&
+    Number.isInteger(r.studyMinutes) &&
+    (r.studyMinutes as number) >= 0 &&
+    (r.studyMinutes as number) <= 600
+  if (!valid) return { ...DEFAULT_ROUTINE, workDays: [...DEFAULT_ROUTINE.workDays] }
+  return { workStart: r.workStart!, workEnd: r.workEnd!, workDays: r.workDays!, studyMinutes: r.studyMinutes! }
+}
+
+export function saveRoutine(routine: Routine, store: Storage = localStorage): boolean {
+  return write(store, ROUTINE_KEY, routine)
 }

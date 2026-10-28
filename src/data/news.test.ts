@@ -1,4 +1,4 @@
-import { createGoogleNewsSource, dedupe, parseRss, sortNews, type NewsItem } from './news'
+import { GENERAL_QUERIES, createGoogleNewsSource, dedupe, parseRss, sortNews, type NewsItem } from './news'
 import { lexiconClassifier } from '../domain/tone'
 
 const xml = `<?xml version="1.0"?><rss><channel>
@@ -56,6 +56,18 @@ test('fonte de notícias busca os 4 termos, remove repetidas e classifica o tom'
   expect(calls).toBe(4)
   expect(items).toHaveLength(2)
   expect(items[0]).toMatchObject({ title: 'Banco do Brasil tem lucro', tone: 'positive' })
+})
+
+test('fonte geral busca mercado, concursos e tecnologia', async () => {
+  const urls: string[] = []
+  const f = (async (url: string) => {
+    urls.push(String(url))
+    return okFetch(url)
+  }) as unknown as typeof fetch
+  await createGoogleNewsSource(f, lexiconClassifier, '/news-proxy', GENERAL_QUERIES).fetchNews()
+  expect(urls).toHaveLength(GENERAL_QUERIES.length)
+  expect(urls.some((u) => u.includes('concurso'))).toBe(true)
+  expect(new Set(GENERAL_QUERIES.map((q) => q.tag))).toEqual(new Set(['Mercado', 'Concursos', 'Tecnologia']))
 })
 
 test('fonte de notícias segue com os termos que deram certo quando um falha', async () => {
