@@ -73,6 +73,14 @@ export function HomePage({ now = () => new Date(), store = localStorage }: { now
             Abrir agenda
           </a>
         </section>
+
+        <section className="card" aria-label="Resumo de notícias">
+          <h2>Notícias</h2>
+          <p className="muted">Mercado, concursos e tecnologia num feed só, com filtro por tema.</p>
+          <a className="more" href="#/noticias">
+            Abrir notícias
+          </a>
+        </section>
       </div>
     </div>
   )

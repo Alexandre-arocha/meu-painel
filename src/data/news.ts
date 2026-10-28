@@ -14,12 +14,22 @@ export interface NewsSource {
   fetchNews(): Promise<NewsItem[]>
 }
 
+export type NewsQuery = { q: string; tag: string }
+
 // Termos da fase 1 (ver plano). Em dev, /news-proxy aponta para https://news.google.com/rss (vite.config.ts).
-const QUERIES: { q: string; tag: string }[] = [
+export const INVESTMENT_QUERIES: NewsQuery[] = [
   { q: 'Banco do Brasil BBAS3', tag: 'BBAS3' },
   { q: 'B3 B3SA3', tag: 'B3SA3' },
   { q: 'Selic', tag: 'Selic' },
   { q: 'renda fixa', tag: 'renda fixa' },
+]
+
+// Feed geral da aba Notícias; as tags viram os filtros de tema.
+export const GENERAL_QUERIES: NewsQuery[] = [
+  { q: 'mercado financeiro Ibovespa', tag: 'Mercado' },
+  { q: 'concurso público edital', tag: 'Concursos' },
+  { q: 'concurso militar edital', tag: 'Concursos' },
+  { q: 'tecnologia', tag: 'Tecnologia' },
 ]
 
 export function parseRss(xml: string, tag: string): Omit<NewsItem, 'tone' | 'reason'>[] {
@@ -60,11 +70,12 @@ export function createGoogleNewsSource(
   fetchFn: typeof fetch = fetch,
   classifier: ToneClassifier,
   baseUrl = '/news-proxy',
+  queries: NewsQuery[] = INVESTMENT_QUERIES,
 ): NewsSource {
   return {
     async fetchNews() {
       const batches = await Promise.allSettled(
-        QUERIES.map(async ({ q, tag }) => {
+        queries.map(async ({ q, tag }) => {
           const url = `${baseUrl}/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
           const res = await fetchFn(url)
           if (!res.ok) throw new Error(`notícias: ${res.status}`)

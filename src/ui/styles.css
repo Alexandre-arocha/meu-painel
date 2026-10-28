@@ -84,6 +84,7 @@ select, textarea { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px
 .list li:first-child { border-top: 0; }
 .ghost { background: transparent; color: var(--tx); border: 1px solid var(--bd); font-weight: 500; }
 .list li.item { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.topics { margin-bottom: var(--gap); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .two .field { margin: 12px 0 0; }
 .days { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0; padding: 0; border: 0; }
