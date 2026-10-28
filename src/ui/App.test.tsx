@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { App } from './App'
 
 const makePrices = () => ({
@@ -8,9 +9,28 @@ const makePrices = () => ({
 })
 const news = { fetchNews: async () => [] }
 
-test('App mostra o título "Meu painel" e o aviso de sinal de apoio', async () => {
+beforeEach(() => {
+  localStorage.clear()
+  window.location.hash = ''
+})
+
+test('App abre no Início com o título', () => {
   render(<App makePrices={makePrices} news={news} />)
   expect(screen.getByText('Meu painel')).toBeInTheDocument()
-  expect(screen.getByText(/não é previsão garantida/i)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
+})
+
+test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => {
+  const user = userEvent.setup()
+  render(<App makePrices={makePrices} news={news} />)
+  await user.click(screen.getByRole('link', { name: 'Investimentos' }))
+  expect(await screen.findByText(/não é previsão garantida/i)).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toBeInTheDocument()
+})
+
+test('navegar para Estudos mostra a questão', async () => {
+  const user = userEvent.setup()
+  render(<App makePrices={makePrices} news={news} />)
+  await user.click(screen.getByRole('link', { name: 'Estudos' }))
+  expect(await screen.findByRole('heading', { name: 'Questão' })).toBeInTheDocument()
 })

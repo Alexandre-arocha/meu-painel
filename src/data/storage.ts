@@ -1,5 +1,6 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
 import type { Quote } from './prices'
+import { parseQuestions, type Attempt, type Question } from '../domain/study'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
 const SETTINGS_KEY = 'painel:v1:settings'
@@ -31,14 +32,24 @@ export function loadPortfolio(store: Storage = localStorage): Portfolio {
   return { holdings, fixedIncome: { ...fi, amount } }
 }
 
-export function savePortfolio(p: Portfolio, store: Storage = localStorage): void {
-  store.setItem(PORTFOLIO_KEY, JSON.stringify({ v: VERSION, portfolio: p }))
+// Navegador privado ou sem espaço pode recusar a gravação: devolve false em vez de quebrar a tela.
+function write(store: Storage, key: string, data: unknown): boolean {
+  try {
+    store.setItem(key, JSON.stringify(data))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function savePortfolio(p: Portfolio, store: Storage = localStorage): boolean {
+  return write(store, PORTFOLIO_KEY, { v: VERSION, portfolio: p })
 }
 
 const QUOTES_KEY = 'painel:v1:lastQuotes'
 
-export function saveQuotes(quotes: Quote[], store: Storage = localStorage): void {
-  store.setItem(QUOTES_KEY, JSON.stringify(quotes))
+export function saveQuotes(quotes: Quote[], store: Storage = localStorage): boolean {
+  return write(store, QUOTES_KEY, quotes)
 }
 
 export function loadQuotes(store: Storage = localStorage): Quote[] {
@@ -51,6 +62,33 @@ export function loadSettings(store: Storage = localStorage): Settings {
   return data && typeof data === 'object' ? (data as Settings) : {}
 }
 
-export function saveSettings(s: Settings, store: Storage = localStorage): void {
-  store.setItem(SETTINGS_KEY, JSON.stringify(s))
+export function saveSettings(s: Settings, store: Storage = localStorage): boolean {
+  return write(store, SETTINGS_KEY, s)
+}
+
+const ATTEMPTS_KEY = 'painel:v1:attempts'
+const QUESTIONS_KEY = 'painel:v1:questions'
+
+export function loadAttempts(store: Storage = localStorage): Attempt[] {
+  const data = readJson(store, ATTEMPTS_KEY)
+  if (!Array.isArray(data)) return []
+  return data.filter(
+    (a): a is Attempt =>
+      !!a && typeof a.questionId === 'string' && typeof a.correct === 'boolean' && typeof a.at === 'string',
+  )
+}
+
+export function saveAttempts(attempts: Attempt[], store: Storage = localStorage): boolean {
+  return write(store, ATTEMPTS_KEY, attempts)
+}
+
+export function loadCustomQuestions(store: Storage = localStorage): Question[] {
+  const data = readJson(store, QUESTIONS_KEY)
+  if (!Array.isArray(data)) return []
+  const r = parseQuestions(JSON.stringify(data))
+  return r.ok ? r.questions : []
+}
+
+export function saveCustomQuestions(questions: Question[], store: Storage = localStorage): boolean {
+  return write(store, QUESTIONS_KEY, questions)
 }
