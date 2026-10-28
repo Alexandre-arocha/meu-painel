@@ -4,11 +4,11 @@ Um lugar só para acompanhar investimentos, notícias, estudos para concursos e 
 
 ## O que tem
 
-- **Início:** resumo do dia com preços, meta de questões, erros para revisar, agenda de hoje e atalho para as notícias.
+- **Início:** resumo do dia com preços, meta de questões, erros para revisar, agenda de hoje, próxima data importante com contagem e as três manchetes mais recentes.
 - **Investimentos:** carteira (BBAS3, B3SA3 e renda fixa), preço do dia, notícias com tom, sinal de apoio e divisão atual contra a meta.
 - **Estudos:** banco de questões (Informática/TI, Português, RLM e Constituição/Forças Armadas), caderno de erros, desempenho por matéria e importação das suas questões em JSON. Matérias com mais erros aparecem mais.
-- **Agenda:** plano do dia montado pela sua rotina (trabalho, notícias e estudo), calendário do mês e compromissos.
-- **Notícias:** feed de mercado, concursos e tecnologia com filtro por tema.
+- **Agenda:** plano do dia montado pela sua rotina (trabalho, notícias e estudo), calendário navegável (toque num dia para ver o plano dele), compromissos com duração e repetição semanal (ex.: academia toda segunda e quarta) e datas importantes com contagem regressiva para provas e eventos de mercado.
+- **Notícias:** feed de mercado, concursos e tecnologia com filtro por tema e filtro "Carteira" (notícias que citam Banco do Brasil ou B3). Cada título abre a matéria em nova aba. Sem conexão, mostra as últimas notícias salvas.
 
 Tudo fica salvo só no seu navegador (localStorage). Funciona no celular e no computador e pode ser instalado como app (PWA).
 
