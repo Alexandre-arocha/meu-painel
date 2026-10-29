@@ -10,7 +10,9 @@ import { PortfolioCard } from './PortfolioCard'
 import { QuoteCard } from './QuoteCard'
 
 const SYMBOLS = ['BBAS3', 'B3SA3']
-const REFRESH_MS = 60_000
+// 4 chamadas à brapi por atualização (cotação e histórico dos 2 ativos): de 15 em 15 min cabe na cota
+// grátis de 15 mil chamadas por mês mesmo com a aba aberta o dia todo.
+const REFRESH_MS = 15 * 60_000
 
 type Props = {
   makePrices: (token: string | undefined) => PriceProvider
