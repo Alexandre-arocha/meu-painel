@@ -7,14 +7,15 @@ function fakeFetch(opts: { quoteStatus?: number; historicalOk?: boolean } = {}) 
     const u = String(url)
     if (u.includes('/quote')) {
       const status = opts.quoteStatus ?? 200
+      const symbol = new URL(u, 'http://x').searchParams.get('symbols') ?? ''
       return {
         ok: status === 200,
         status,
         json: async () => ({
           results: [
             {
-              requestedSymbol: 'BBAS3',
-              symbol: 'BBAS3',
+              requestedSymbol: symbol,
+              symbol,
               changed: false,
               data: {
                 regularMarketPrice: 30,
@@ -31,7 +32,9 @@ function fakeFetch(opts: { quoteStatus?: number; historicalOk?: boolean } = {}) 
       ok: true,
       status: 200,
       json: async () => ({
-        results: [{ symbol: 'BBAS3', data: [{ date: 1793196000, close: 29.5 }] }],
+        results: [
+          { symbol: 'BBAS3', data: { usedInterval: '15m', usedRange: '1d', historicalDataPrice: [{ date: 1793196000, close: 29.5 }] } },
+        ],
       }),
     }
   }) as unknown as typeof fetch
@@ -58,16 +61,14 @@ test('getQuotes devolve a cotação com intraday vazio se o histórico falhar', 
 })
 
 test('getQuotes ignora cotação sem preço válido em vez de devolver NaN', async () => {
-  const f = (async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      results: [
-        { symbol: 'BBAS3', data: { regularMarketPrice: null, regularMarketChangePercent: 1, regularMarketTime: '2026-10-28T13:58:00Z' } },
-        { symbol: 'B3SA3', data: { regularMarketPrice: 12.3, regularMarketChangePercent: -0.4, regularMarketTime: '2026-10-28T13:58:00Z' } },
-      ],
-    }),
-  })) as unknown as typeof fetch
+  const data: Record<string, unknown> = {
+    BBAS3: { regularMarketPrice: null, regularMarketChangePercent: 1, regularMarketTime: '2026-10-28T13:58:00Z' },
+    B3SA3: { regularMarketPrice: 12.3, regularMarketChangePercent: -0.4, regularMarketTime: '2026-10-28T13:58:00Z' },
+  }
+  const f = (async (url: string) => {
+    const symbol = new URL(String(url), 'http://x').searchParams.get('symbols') ?? ''
+    return { ok: true, status: 200, json: async () => ({ results: [{ symbol, data: data[symbol] }] }) }
+  }) as unknown as typeof fetch
   const qs = await createBrapiProvider('tok', f, () => NOW).getQuotes(['BBAS3', 'B3SA3'])
   expect(qs.map((q) => q.symbol)).toEqual(['B3SA3'])
 })
@@ -81,6 +82,28 @@ test('provedor do servidor chama /api/brapi sem Authorization', async () => {
   const [q] = await createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3'])
   expect(q.price).toBe(30)
   expect(calls[0]).toEqual({ url: '/api/brapi/quote?symbols=BBAS3', auth: null })
+})
+
+test('getQuotes pede um ativo por chamada, porque o plano grátis da brapi aceita só 1', async () => {
+  const urls: string[] = []
+  const f = (async (url: string) => {
+    urls.push(String(url))
+    return fakeFetch()(url)
+  }) as unknown as typeof fetch
+  const qs = await createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3', 'B3SA3'])
+  expect(urls.filter((u) => u.includes('/quote'))).toEqual(['/api/brapi/quote?symbols=BBAS3', '/api/brapi/quote?symbols=B3SA3'])
+  expect(qs.map((q) => q.symbol)).toEqual(['BBAS3', 'B3SA3'])
+})
+
+test('erro da brapi mostra o motivo que ela devolve', async () => {
+  const f = (async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: true, message: 'Seu plano permite no máximo 1 ativo(s) por requisição.' }),
+  })) as unknown as typeof fetch
+  await expect(createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3'])).rejects.toThrow(
+    'erro ao buscar preços (400): Seu plano permite no máximo 1 ativo(s) por requisição.',
+  )
 })
 
 test('503 do servidor vira mensagem de token não cadastrado', async () => {
