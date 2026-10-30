@@ -7,6 +7,7 @@ import { computeSignal } from '../domain/signal'
 import { AllocationCard } from './AllocationCard'
 import { NewsList } from './NewsList'
 import { PortfolioCard } from './PortfolioCard'
+import { QuantEngine } from './QuantEngine'
 import { QuoteCard } from './QuoteCard'
 import { SYMBOLS, useQuotes } from './useQuotes'
 
@@ -55,6 +56,15 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
         </p>
       )}
       <div className="grid">
+        <QuantEngine
+          makePrices={makePrices}
+          token={token}
+          portfolio={portfolio}
+          target={settings.targetAllocation}
+          quotes={quotes}
+          now={now}
+          store={store}
+        />
         {SYMBOLS.map((s) => (
           <QuoteCard
             key={s}

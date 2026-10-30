@@ -4,6 +4,9 @@ export const money = (n: number) => brl.format(n)
 
 export const pct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2).replace('.', ',')}%`
 
+// Fração como porcentagem sem sinal: 0.2843 vira "28,4%".
+export const ratio = (f: number) => `${(f * 100).toFixed(1).replace('.', ',')}%`
+
 export const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
