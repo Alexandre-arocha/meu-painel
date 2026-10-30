@@ -68,6 +68,13 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
   const split = allocation(portfolio, prices)
   const target = settings.targetAllocation
 
+  function allocationNote(): string | null {
+    if (empty) return 'Informe suas quantidades na aba Investimentos.'
+    if (missingPrice) return 'A divisão aparece quando os preços carregarem.'
+    return null
+  }
+  const note = allocationNote()
+
   return (
     <div className="page today">
       <div className="today-head">
@@ -122,10 +129,8 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
 
         <section aria-label="Carteira e agenda">
           <h2>Carteira</h2>
-          {empty ? (
-            <p className="muted">Informe suas quantidades na aba Investimentos.</p>
-          ) : missingPrice ? (
-            <p className="muted">A divisão aparece quando os preços carregarem.</p>
+          {note ? (
+            <p className="muted">{note}</p>
           ) : (
             PARTS.map(([key, label]) => (
               <div className="alloc" key={key}>
