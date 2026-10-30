@@ -1,4 +1,25 @@
-import { loadPortfolio, loadQuotes, loadSettings, loadTheme, savePortfolio, saveQuotes, saveSettings, saveTheme } from './storage'
+import {
+  loadHistory,
+  loadPortfolio,
+  loadQuotes,
+  loadSettings,
+  loadTheme,
+  saveHistory,
+  savePortfolio,
+  saveQuotes,
+  saveSettings,
+  saveTheme,
+} from './storage'
+
+test('saveHistory e loadHistory guardam o histórico do dia; dado inválido vira null', () => {
+  localStorage.clear()
+  expect(loadHistory()).toBeNull()
+  const h = { day: '2026-10-29', series: { BBAS3: [{ t: '2026-10-28T00:00:00.000Z', p: 16.4 }] } }
+  saveHistory(h)
+  expect(loadHistory()).toEqual(h)
+  localStorage.setItem('painel:v1:history', '{"day":5}')
+  expect(loadHistory()).toBeNull()
+})
 
 test('loadTheme começa no preto e lembra o tema salvo', () => {
   localStorage.clear()

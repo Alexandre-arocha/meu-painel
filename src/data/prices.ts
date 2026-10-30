@@ -1,17 +1,21 @@
 // brapi.dev v2. Docs: https://brapi.dev/docs/acoes/cotacao.md e https://brapi.dev/docs/acoes/historico.md
 // Token no header Authorization: Bearer. Erros: 400 limite do plano (ativos por chamada, intervalo), 401 token
 // ausente/inválido, 403 plano, 429 limite.
+export type Point = { t: string; p: number }
+
 export type Quote = {
   symbol: string
   price: number
   changePct: number
   updatedAt: string
   stale: boolean
-  intraday: { t: string; p: number }[]
+  intraday: Point[]
 }
 
 export interface PriceProvider {
   getQuotes(symbols: string[]): Promise<Quote[]>
+  // Fechamentos diários dos últimos 3 meses. Opcional: provedores de teste podem não ter.
+  getHistory?(symbol: string): Promise<Point[]>
 }
 
 const BASE = 'https://brapi.dev/api/v2/stocks'
@@ -55,17 +59,28 @@ export function createBrapiProvider(
   const viaServer = base !== BASE
   const get = (url: string) => fetchFn(url, viaServer ? {} : { headers: { Authorization: `Bearer ${token}` } })
 
-  async function intraday(symbol: string): Promise<Quote['intraday']> {
+  async function failure(res: Response, what: string): Promise<Error> {
+    if (res.status === 401) return new Error(viaServer ? 'sessão expirada; entre de novo' : 'token inválido')
+    if (viaServer && res.status === 503) return new Error('token da brapi não cadastrado na Vercel')
+    return new Error(`erro ao buscar ${what} (${res.status})${await reason(res)}`)
+  }
+
+  async function history(symbol: string, range: string, interval: string): Promise<Point[]> {
+    const res = await get(`${base}/historical?symbols=${symbol}&range=${range}&interval=${interval}`)
+    if (!res.ok) throw await failure(res, 'histórico')
+    const body = (await res.json()) as {
+      results?: { data?: { historicalDataPrice?: { date: number; close: number | null; adjustedClose?: number | null }[] } }[]
+    }
+    return (body.results?.[0]?.data?.historicalDataPrice ?? [])
+      // Fechamento ajustado por proventos quando vier: assim o retorno conta dividendos e JCP.
+      .map((r) => ({ t: new Date(r.date * 1000).toISOString(), p: r.adjustedClose ?? r.close }))
+      .filter((x): x is Point => typeof x.p === 'number' && Number.isFinite(x.p))
+      .sort((a, b) => a.t.localeCompare(b.t))
+  }
+
+  async function intraday(symbol: string): Promise<Point[]> {
     try {
-      const res = await get(`${base}/historical?symbols=${symbol}&range=1d&interval=15m`)
-      if (!res.ok) return []
-      const body = (await res.json()) as {
-        results?: { data?: { historicalDataPrice?: { date: number; close: number | null }[] } }[]
-      }
-      const rows = body.results?.[0]?.data?.historicalDataPrice ?? []
-      return rows
-        .filter((r) => typeof r.close === 'number')
-        .map((r) => ({ t: new Date(r.date * 1000).toISOString(), p: r.close as number }))
+      return await history(symbol, '1d', '15m')
     } catch {
       return []
     }
@@ -73,14 +88,17 @@ export function createBrapiProvider(
 
   async function quote(symbol: string): Promise<{ symbol: string; data: Raw }[]> {
     const res = await get(`${base}/quote?symbols=${symbol}`)
-    if (res.status === 401) throw new Error(viaServer ? 'sessão expirada; entre de novo' : 'token inválido')
-    if (viaServer && res.status === 503) throw new Error('token da brapi não cadastrado na Vercel')
-    if (!res.ok) throw new Error(`erro ao buscar preços (${res.status})${await reason(res)}`)
+    if (!res.ok) throw await failure(res, 'preços')
     const body = (await res.json()) as { results?: { symbol: string; data: Raw }[] }
     return body.results ?? []
   }
 
   return {
+    async getHistory(symbol) {
+      if (!viaServer && !token) throw new Error('token ausente')
+      return history(symbol, '3mo', '1d')
+    },
+
     async getQuotes(symbols) {
       if (!viaServer && !token) throw new Error('token ausente')
       // Um ativo por chamada: o plano grátis da brapi recusa mais de 1 (QUOTES_PER_REQUEST_EXCEEDED).
