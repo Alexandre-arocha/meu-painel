@@ -23,12 +23,22 @@ export function parseAmount(input: string): QuantityResult {
   return { ok: true, value: Number(t) }
 }
 
-export function allocation(p: Portfolio, prices: Record<string, number>): Allocation {
+function values(p: Portfolio, prices: Record<string, number>): Allocation {
   const value = { fixedIncome: Math.max(0, p.fixedIncome.amount || 0), BBAS3: 0, B3SA3: 0 }
   for (const h of p.holdings) {
     const price = prices[h.symbol]
     if (Number.isFinite(price) && h.quantity > 0) value[h.symbol] += h.quantity * price
   }
+  return value
+}
+
+export function portfolioValue(p: Portfolio, prices: Record<string, number>): number {
+  const value = values(p, prices)
+  return value.fixedIncome + value.BBAS3 + value.B3SA3
+}
+
+export function allocation(p: Portfolio, prices: Record<string, number>): Allocation {
+  const value = values(p, prices)
   const total = value.fixedIncome + value.BBAS3 + value.B3SA3
   if (total === 0) return { fixedIncome: 0, BBAS3: 0, B3SA3: 0 }
   return {
