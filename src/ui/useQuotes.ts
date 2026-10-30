@@ -3,7 +3,7 @@ import type { PriceProvider, Quote } from '../data/prices'
 import { loadQuotes, saveQuotes } from '../data/storage'
 
 export const SYMBOLS = ['BBAS3', 'B3SA3']
-// 4 chamadas à brapi por atualização (cotação e histórico dos 2 ativos): de 15 em 15 min cabe na cota
+// 2 chamadas à brapi por atualização (a cotação de cada ativo): de 15 em 15 min cabe na cota
 // grátis de 15 mil chamadas por mês mesmo com a aba aberta o dia todo.
 const REFRESH_MS = 15 * 60_000
 

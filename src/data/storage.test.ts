@@ -31,7 +31,7 @@ test('loadTheme começa no preto e lembra o tema salvo', () => {
 })
 
 test('saveQuotes e loadQuotes guardam a última cotação', () => {
-  const q = [{ symbol: 'BBAS3', price: 28, changePct: 0.5, updatedAt: '2026-10-28T13:00:00Z', stale: false, intraday: [] }]
+  const q = [{ symbol: 'BBAS3', price: 28, changePct: 0.5, updatedAt: '2026-10-28T13:00:00Z', stale: false }]
   saveQuotes(q)
   expect(loadQuotes()).toEqual(q)
 })

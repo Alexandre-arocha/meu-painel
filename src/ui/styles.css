@@ -75,7 +75,6 @@ h1, h2, p { margin: 0; }
 .pill.warn { color: var(--warn); }
 .pill.ac { color: var(--ac); }
 .pills { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.spark { width: 100%; height: 96px; margin: 8px 0; color: var(--ac); }
 .signal { margin-top: 8px; }
 .notice { margin-top: 24px; text-align: center; color: var(--mut); font-size: 0.8125rem; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

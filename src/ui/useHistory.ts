@@ -3,7 +3,7 @@ import type { Point, PriceProvider } from '../data/prices'
 import { loadHistory, saveHistory } from '../data/storage'
 import { SYMBOLS } from './useQuotes'
 
-type State = { series: Record<string, Point[]>; error: string | null; loading: boolean }
+export type HistoryState = { series: Record<string, Point[]>; error: string | null; loading: boolean }
 
 // Histórico diário dos ativos: usa o guardado de hoje ou busca 1 vez por ativo e guarda. Se falhar, fica com o guardado antigo.
 export function useHistory(
@@ -11,8 +11,8 @@ export function useHistory(
   token: string | undefined,
   store: Storage,
   today: string,
-): State {
-  const [state, setState] = useState<State>(() => {
+): HistoryState {
+  const [state, setState] = useState<HistoryState>(() => {
     const cached = loadHistory(store)
     return { series: cached?.series ?? {}, error: null, loading: cached?.day !== today }
   })
