@@ -11,7 +11,10 @@ O dono quer "uma área só para investimento, tipo um motor quantitativo". Ele m
 A área fica na tela Investimentos, que abre pelo "Editar carteira" da tela única.
 
 - **Ativo:** escolha entre BBAS3 e B3SA3.
-- **Gráfico:** preço dos últimos 3 meses com as médias de 9 e 21 dias.
+- **Gráfico:** preço ajustado por proventos dos últimos 3 meses com as médias de 9 e 21 dias.
+  - Mostra o primeiro e o último dia e o maior e o menor valor.
+  - O cursor, o toque ou as setas do teclado mostram os valores de cada dia.
+  - Uma tabela, que abre ao toque, traz todos os dias.
 - **Indicadores:**
   - Preço.
   - Retorno no período.
@@ -19,6 +22,7 @@ A área fica na tela Investimentos, que abre pelo "Editar carteira" da tela úni
   - Maior queda.
   - RSI de 14 dias.
   - Preço acima ou abaixo da média de 21 dias.
+- **Como ler os números:** uma explicação curta de cada indicador, que abre ao toque.
 - **Teste de estratégia:** cruzamento das médias 9 e 21 contra "comprar e segurar", com as duas curvas e o número de trocas de posição.
 - **Risco da carteira:**
   - Valor da carteira.
@@ -43,6 +47,10 @@ O formulário da carteira, as metas, os cartões de preço e as notícias contin
 
 - **Renda fixa:** entra no risco com volatilidade zero. É uma simplificação, porque a taxa varia pouco no dia a dia.
 - **VaR:** paramétrico, 1,645 × desvio padrão diário × valor da carteira.
-- **RSI:** média simples dos ganhos e perdas dos últimos 14 dias.
+- **RSI:** o de Wilder, que as corretoras usam. Começa pela média simples dos 14 primeiros dias e depois suaviza dia a dia.
+- **Preço ajustado:** o histórico usa o fechamento ajustado por proventos (`adjustedClose`). Assim o retorno, a maior queda e o teste de estratégia contam dividendos e JCP.
+- **Preço de agora:** a cotação ao vivo troca o fechamento do dia no histórico, ou entra como o dia seguinte. O gráfico e os números batem com o preço mostrado.
+- **Dias em comum:** a correlação e o risco usam só os dias em que os dois ativos negociaram.
+- **Projeção da renda fixa:** não desconta o imposto de renda, e a tela avisa isso.
 - **Estratégia:** fica comprada no dia seguinte a um dia em que a média de 9 ficou acima da de 21.
 - **Simulador sem meta:** quando o dono ainda não tem meta, o simulador pede para definir a meta antes.
