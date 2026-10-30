@@ -1,4 +1,13 @@
-import { loadPortfolio, loadQuotes, loadSettings, savePortfolio, saveQuotes, saveSettings } from './storage'
+import { loadPortfolio, loadQuotes, loadSettings, loadTheme, savePortfolio, saveQuotes, saveSettings, saveTheme } from './storage'
+
+test('loadTheme começa no preto e lembra o tema salvo', () => {
+  localStorage.clear()
+  expect(loadTheme()).toBe('dark')
+  saveTheme('light')
+  expect(loadTheme()).toBe('light')
+  localStorage.setItem('painel:v1:theme', '"roxo"')
+  expect(loadTheme()).toBe('dark')
+})
 
 test('saveQuotes e loadQuotes guardam a última cotação', () => {
   const q = [{ symbol: 'BBAS3', price: 28, changePct: 0.5, updatedAt: '2026-10-28T13:00:00Z', stale: false, intraday: [] }]

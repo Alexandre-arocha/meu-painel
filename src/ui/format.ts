@@ -10,6 +10,14 @@ export const hhmm = (iso: string) =>
 export const dayTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
+const longFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+// "quinta-feira, 29 de outubro" com a primeira letra maiúscula.
+export function longDate(d: Date): string {
+  const text = longFmt.format(d)
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 const two = (n: number) => String(n).padStart(2, '0')
 
 // Data local no formato AAAA-MM-DD (a agenda e a meta diária usam o dia do aparelho, não UTC).

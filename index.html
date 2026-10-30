@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
     <title>Meu painel</title>
+    <script>
+      // Aplica o tema antes do React para a tela não piscar em branco ao abrir no preto.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('painel:v1:theme') === '"light"' ? 'light' : 'dark'
+      } catch {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

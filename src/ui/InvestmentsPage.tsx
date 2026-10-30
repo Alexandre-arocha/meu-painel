@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { PriceProvider, Quote } from '../data/prices'
+import type { PriceProvider } from '../data/prices'
 import type { NewsItem, NewsSource } from '../data/news'
-import { loadPortfolio, loadQuotes, loadSettings, savePortfolio, saveQuotes, saveSettings } from '../data/storage'
+import { loadPortfolio, loadSettings, savePortfolio, saveSettings } from '../data/storage'
 import { allocation, type Portfolio } from '../domain/portfolio'
 import { computeSignal } from '../domain/signal'
 import { AllocationCard } from './AllocationCard'
 import { NewsList } from './NewsList'
 import { PortfolioCard } from './PortfolioCard'
 import { QuoteCard } from './QuoteCard'
-
-const SYMBOLS = ['BBAS3', 'B3SA3']
-// 4 chamadas à brapi por atualização (cotação e histórico dos 2 ativos): de 15 em 15 min cabe na cota
-// grátis de 15 mil chamadas por mês mesmo com a aba aberta o dia todo.
-const REFRESH_MS = 15 * 60_000
+import { SYMBOLS, useQuotes } from './useQuotes'
 
 type Props = {
   makePrices: (token: string | undefined) => PriceProvider
@@ -25,34 +21,10 @@ type Props = {
 export function InvestmentsPage({ makePrices, news, now = () => new Date(), store = localStorage, serverPrices = false }: Props) {
   const [portfolio, setPortfolio] = useState<Portfolio>(() => loadPortfolio(store))
   const [settings, setSettings] = useState(() => loadSettings(store))
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<NewsItem[]>([])
   const [tokenDraft, setTokenDraft] = useState(settings.brapiToken ?? '')
   const token = settings.brapiToken
-
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const q = await makePrices(token).getQuotes(SYMBOLS)
-        if (!alive) return
-        setQuotes(q)
-        saveQuotes(q, store)
-        setError(null)
-      } catch (e) {
-        if (!alive) return
-        setQuotes(loadQuotes(store).map((q) => ({ ...q, stale: true })))
-        setError(e instanceof Error ? e.message : 'erro ao buscar preços')
-      }
-    }
-    void load()
-    const id = setInterval(load, REFRESH_MS)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
-  }, [makePrices, token, store])
+  const { quotes, error } = useQuotes(makePrices, token, store)
 
   useEffect(() => {
     let alive = true

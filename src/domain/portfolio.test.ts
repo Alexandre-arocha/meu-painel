@@ -1,4 +1,20 @@
-import { allocation, parseAmount, parseQuantity, type Portfolio } from './portfolio'
+import { allocation, parseAmount, parseQuantity, portfolioValue, type Portfolio } from './portfolio'
+
+const carteira: Portfolio = {
+  holdings: [
+    { symbol: 'BBAS3', quantity: 100 },
+    { symbol: 'B3SA3', quantity: 200 },
+  ],
+  fixedIncome: { amount: 10000 },
+}
+
+test('portfolioValue soma renda fixa e ações pelo preço', () => {
+  expect(portfolioValue(carteira, { BBAS3: 16.46, B3SA3: 14.2 })).toBeCloseTo(14486, 2)
+})
+
+test('portfolioValue conta como zero a ação sem preço', () => {
+  expect(portfolioValue(carteira, { BBAS3: 16.46 })).toBeCloseTo(11646, 2)
+})
 
 test('parseAmount aceita "10000", "10.000,50" e "10000.5"', () => {
   expect(parseAmount('10000')).toEqual({ ok: true, value: 10000 })
