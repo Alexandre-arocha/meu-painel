@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { setWriteListener } from '../data/storage'
+import { loadTheme, setWriteListener } from '../data/storage'
 
 const makePrices = () => ({
   async getQuotes() {
@@ -57,6 +57,16 @@ test('App abre no Início com o título', () => {
   render(<App makePrices={makePrices} news={news} generalNews={news} />)
   expect(screen.getByText('Meu painel')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
+})
+
+test('botão de tema troca o preto pelo branco e lembra a escolha', async () => {
+  const user = userEvent.setup()
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
+  expect(document.documentElement.dataset.theme).toBe('dark')
+  await user.click(screen.getByRole('button', { name: 'Mudar para o tema claro' }))
+  expect(document.documentElement.dataset.theme).toBe('light')
+  expect(loadTheme()).toBe('light')
+  expect(screen.getByRole('button', { name: 'Mudar para o tema escuro' })).toBeInTheDocument()
 })
 
 test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => {

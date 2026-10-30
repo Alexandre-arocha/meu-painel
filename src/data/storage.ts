@@ -76,6 +76,18 @@ export function saveSettings(s: Settings, store: Storage = localStorage): boolea
   return write(store, SETTINGS_KEY, s)
 }
 
+const THEME_KEY = 'painel:v1:theme'
+export type Theme = 'dark' | 'light'
+
+// Preferência deste aparelho: fica fora da sincronização. O padrão é o preto.
+export function loadTheme(store: Storage = localStorage): Theme {
+  return readJson(store, THEME_KEY) === 'light' ? 'light' : 'dark'
+}
+
+export function saveTheme(theme: Theme, store: Storage = localStorage): boolean {
+  return write(store, THEME_KEY, theme)
+}
+
 const ATTEMPTS_KEY = 'painel:v1:attempts'
 const QUESTIONS_KEY = 'painel:v1:questions'
 
