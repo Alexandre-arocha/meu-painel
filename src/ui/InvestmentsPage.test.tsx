@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InvestmentsPage } from './InvestmentsPage'
 import { loadPortfolio, saveQuotes, saveSettings } from '../data/storage'
-import type { PriceProvider, Quote } from '../data/prices'
+import type { Point, PriceProvider, Quote } from '../data/prices'
 import type { NewsItem, NewsSource } from '../data/news'
 
 const quote = (symbol: string, over: Partial<Quote> = {}): Quote => ({
@@ -11,10 +11,6 @@ const quote = (symbol: string, over: Partial<Quote> = {}): Quote => ({
   changePct: 1.5,
   updatedAt: new Date().toISOString(),
   stale: false,
-  intraday: [
-    { t: '2026-10-28T13:00:00Z', p: 29 },
-    { t: '2026-10-28T14:00:00Z', p: 30 },
-  ],
   ...over,
 })
 
@@ -24,6 +20,18 @@ const okPrices =
     async getQuotes(symbols) {
       if (!token) throw new Error('token ausente')
       return symbols.map((s) => quote(s, over))
+    },
+  })
+
+// Pregões à meia-noite de Brasília (03:00 UTC): 30 dias a partir de 01/08, subindo 10 centavos por dia.
+const daily = Array.from({ length: 30 }, (_, i): Point => ({ t: new Date(Date.UTC(2026, 7, 1 + i, 3)).toISOString(), p: 20 + i * 0.1 }))
+const withHistory =
+  (calls: string[] = []) =>
+  (): PriceProvider => ({
+    getQuotes: async (symbols) => symbols.map((s) => quote(s, { updatedAt: '2026-09-01T15:00:00.000Z' })),
+    getHistory: async (symbol) => {
+      calls.push(symbol)
+      return daily
     },
   })
 
@@ -129,9 +137,25 @@ test('mostra o aviso "Sinal de apoio, não é previsão garantida."', async () =
   expect(await screen.findByText('Sinal de apoio, não é previsão garantida.')).toBeInTheDocument()
 })
 
-test('mercado fechado mostra "mercado fechado" no lugar do gráfico', async () => {
-  withToken()
-  render(<InvestmentsPage makePrices={okPrices({ intraday: [] })} news={noNews} />)
+test('cartão do ativo mostra o último mês do histórico diário, terminando no preço de agora', async () => {
+  render(<InvestmentsPage makePrices={withHistory()} news={noNews} serverPrices />)
   const region = await screen.findByRole('region', { name: 'BBAS3' })
-  expect(await within(region).findByText(/mercado fechado/)).toBeInTheDocument()
+  const chart = await within(region).findByRole('img', { name: /Preço ajustado de BBAS3 no último mês/ })
+  // 22 pregões: de 10/08 até a cotação de 01/09 (R$ 30,00), que entra como o último dia.
+  expect(chart).toHaveAccessibleName(/de 10\/08 a 01\/09, entre R\$\s20,90 e R\$\s30,00/)
+})
+
+test('o motor e os cartões usam a mesma busca do histórico: uma por ativo', async () => {
+  const calls: string[] = []
+  render(<InvestmentsPage makePrices={withHistory(calls)} news={noNews} serverPrices />)
+  const region = await screen.findByRole('region', { name: 'B3SA3' })
+  await within(region).findByRole('img', { name: /no último mês/ })
+  expect([...calls].sort()).toEqual(['B3SA3', 'BBAS3'])
+})
+
+test('sem histórico o cartão avisa no lugar do gráfico do mês', async () => {
+  withToken()
+  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
+  const region = await screen.findByRole('region', { name: 'BBAS3' })
+  expect(await within(region).findByText('Sem histórico para o gráfico do mês.')).toBeInTheDocument()
 })

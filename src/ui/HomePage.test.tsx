@@ -15,7 +15,6 @@ const quote = (symbol: string, price: number, changePct: number): Quote => ({
   changePct,
   updatedAt: '2026-10-28T12:00:00Z',
   stale: false,
-  intraday: [],
 })
 const prices = (quotes: Quote[]) => (): PriceProvider => ({ getQuotes: async () => quotes })
 const noPrices = (): PriceProvider => ({

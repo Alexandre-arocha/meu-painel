@@ -1,24 +1,16 @@
-import type { Quote } from '../data/prices'
+import type { Point, Quote } from '../data/prices'
+import { withLivePrice } from '../domain/quant'
 import type { Signal } from '../domain/signal'
-import { hhmm, money, pct } from './format'
+import { dayMonth, hhmm, money, pct } from './format'
+import { LineChart } from './LineChart'
 
-function Sparkline({ symbol, points }: { symbol: string; points: Quote['intraday'] }) {
-  const ps = points.map((p) => p.p)
-  const min = Math.min(...ps)
-  const span = Math.max(...ps) - min || 1
-  const line = ps
-    .map((p, i) => `${(i / Math.max(ps.length - 1, 1)) * 300},${110 - ((p - min) / span) * 100}`)
-    .join(' ')
-  return (
-    <svg className="spark" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label={`Gráfico do dia de ${symbol}`}>
-      <polyline points={line} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
-  )
-}
+const MONTH = 22 // pregões, cerca de um mês
 
 const signalClass = { 'mais positivo': 'up', 'mais negativo': 'dn', neutro: 'mut', 'sem dados': 'mut' } as const
 
-export function QuoteCard({ symbol, quote, signal }: { symbol: string; quote?: Quote; signal: Signal }) {
+// Preço, variação e o último mês do histórico diário, que termina na cotação ao vivo.
+export function QuoteCard({ symbol, quote, history, signal }: { symbol: string; quote?: Quote; history: Point[]; signal: Signal }) {
+  const month = withLivePrice(history, quote).slice(-MONTH)
   return (
     <section className="card" aria-label={symbol}>
       <header className="card-head">
@@ -30,14 +22,20 @@ export function QuoteCard({ symbol, quote, signal }: { symbol: string; quote?: Q
           <p className="price num">{money(quote.price)}</p>
           <p className={`num ${quote.changePct >= 0 ? 'up' : 'dn'}`}>{pct(quote.changePct)}</p>
           <p className="muted">atualizado às {hhmm(quote.updatedAt)}</p>
-          {quote.intraday.length > 1 ? (
-            <Sparkline symbol={symbol} points={quote.intraday} />
-          ) : (
-            <p className="muted">Sem gráfico do dia: mercado fechado ou dados indisponíveis.</p>
-          )}
         </>
       ) : (
         <p className="muted">Sem preço ainda.</p>
+      )}
+      {month.length > 1 ? (
+        <LineChart
+          height={96}
+          label={`Preço ajustado de ${symbol} no último mês`}
+          dates={month.map((p) => dayMonth(p.t))}
+          format={money}
+          series={[{ label: 'Preço ajustado', values: month.map((p) => p.p), color: 'var(--viz-1)' }]}
+        />
+      ) : (
+        <p className="muted">Sem histórico para o gráfico do mês.</p>
       )}
       <p className="signal">
         Sinal das notícias: <span className={`pill ${signalClass[signal.label]}`}>{signal.label}</span>

@@ -5,10 +5,12 @@ import { loadPortfolio, loadSettings, savePortfolio, saveSettings } from '../dat
 import { allocation, type Portfolio } from '../domain/portfolio'
 import { computeSignal } from '../domain/signal'
 import { AllocationCard } from './AllocationCard'
+import { localDate } from './format'
 import { NewsList } from './NewsList'
 import { PortfolioCard } from './PortfolioCard'
 import { QuantEngine } from './QuantEngine'
 import { QuoteCard } from './QuoteCard'
+import { useHistory } from './useHistory'
 import { SYMBOLS, useQuotes } from './useQuotes'
 
 type Props = {
@@ -26,6 +28,8 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
   const [tokenDraft, setTokenDraft] = useState(settings.brapiToken ?? '')
   const token = settings.brapiToken
   const { quotes, error } = useQuotes(makePrices, token, store)
+  // Uma busca só do histórico para o motor e os cartões: 1 chamada por ativo por dia na cota da brapi.
+  const history = useHistory(makePrices, token, store, localDate(now()))
 
   useEffect(() => {
     let alive = true
@@ -56,20 +60,13 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
         </p>
       )}
       <div className="grid">
-        <QuantEngine
-          makePrices={makePrices}
-          token={token}
-          portfolio={portfolio}
-          target={settings.targetAllocation}
-          quotes={quotes}
-          now={now}
-          store={store}
-        />
+        <QuantEngine history={history} portfolio={portfolio} target={settings.targetAllocation} quotes={quotes} />
         {SYMBOLS.map((s) => (
           <QuoteCard
             key={s}
             symbol={s}
             quote={quotes.find((q) => q.symbol === s)}
+            history={history.series[s] ?? []}
             signal={computeSignal(
               items.filter((i) => i.tags.includes(s)),
               quotes.find((q) => q.symbol === s),

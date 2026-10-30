@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PriceProvider, Quote } from '../data/prices'
+import type { Quote } from '../data/prices'
 import { parseAmount, type Allocation, type Portfolio } from '../domain/portfolio'
 import {
   alignByDay,
@@ -15,9 +15,9 @@ import {
   splitContribution,
   withLivePrice,
 } from '../domain/quant'
-import { dayMonth, localDate, money, pct, ratio } from './format'
+import { dayMonth, money, pct, ratio } from './format'
 import { ChartTable, LineChart } from './LineChart'
-import { useHistory } from './useHistory'
+import type { HistoryState } from './useHistory'
 import { SYMBOLS } from './useQuotes'
 
 const MIN_POINTS = 22 // média de 21 dias + 1 pregão
@@ -35,13 +35,10 @@ const EXPLAIN: [string, string][] = [
 ]
 
 type Props = {
-  makePrices: (token: string | undefined) => PriceProvider
-  token: string | undefined
+  history: HistoryState
   portfolio: Portfolio
   target?: Allocation
   quotes: Quote[]
-  now?: () => Date
-  store?: Storage
 }
 
 const last = (xs: number[]) => xs[xs.length - 1]
@@ -69,11 +66,11 @@ function ResultRow({ label, color, change }: { label: string; color: string; cha
 }
 
 // Motor quantitativo: indicadores, teste de estratégia, risco e simulador de aportes. Descreve o passado; não recomenda.
-export function QuantEngine({ makePrices, token, portfolio, target, quotes, now = () => new Date(), store = localStorage }: Props) {
+export function QuantEngine({ history, portfolio, target, quotes }: Props) {
   const [symbol, setSymbol] = useState(SYMBOLS[0])
   const [amountText, setAmountText] = useState('1000')
   const [rateText, setRateText] = useState(String(portfolio.fixedIncome.ratePctYear ?? ''))
-  const { series, error, loading } = useHistory(makePrices, token, store, localDate(now()))
+  const { series, error, loading } = history
 
   // O histórico termina na cotação ao vivo, para o gráfico e os números baterem com o preço de agora.
   const merged = Object.fromEntries(SYMBOLS.map((s) => [s, withLivePrice(series[s] ?? [], quotes.find((q) => q.symbol === s))]))

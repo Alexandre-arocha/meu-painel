@@ -23,7 +23,6 @@ const quote = (changePct: number): Quote => ({
   changePct,
   updatedAt: NOW.toISOString(),
   stale: false,
-  intraday: [],
 })
 
 test('3 positivas e 1 negativa nas últimas 6 h dão "mais positivo"', () => {

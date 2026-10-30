@@ -9,7 +9,6 @@ export type Quote = {
   changePct: number
   updatedAt: string
   stale: boolean
-  intraday: Point[]
 }
 
 export interface PriceProvider {
@@ -65,8 +64,9 @@ export function createBrapiProvider(
     return new Error(`erro ao buscar ${what} (${res.status})${await reason(res)}`)
   }
 
-  async function history(symbol: string, range: string, interval: string): Promise<Point[]> {
-    const res = await get(`${base}/historical?symbols=${symbol}&range=${range}&interval=${interval}`)
+  // Fechamentos diários dos últimos 3 meses, o máximo do plano grátis. O plano recusa o intervalo de 15 minutos do gráfico do dia.
+  async function history(symbol: string): Promise<Point[]> {
+    const res = await get(`${base}/historical?symbols=${symbol}&range=3mo&interval=1d`)
     if (!res.ok) throw await failure(res, 'histórico')
     const body = (await res.json()) as {
       results?: { data?: { historicalDataPrice?: { date: number; close: number | null; adjustedClose?: number | null }[] } }[]
@@ -76,14 +76,6 @@ export function createBrapiProvider(
       .map((r) => ({ t: new Date(r.date * 1000).toISOString(), p: r.adjustedClose ?? r.close }))
       .filter((x): x is Point => typeof x.p === 'number' && Number.isFinite(x.p))
       .sort((a, b) => a.t.localeCompare(b.t))
-  }
-
-  async function intraday(symbol: string): Promise<Point[]> {
-    try {
-      return await history(symbol, '1d', '15m')
-    } catch {
-      return []
-    }
   }
 
   async function quote(symbol: string): Promise<{ symbol: string; data: Raw }[]> {
@@ -96,17 +88,16 @@ export function createBrapiProvider(
   return {
     async getHistory(symbol) {
       if (!viaServer && !token) throw new Error('token ausente')
-      return history(symbol, '3mo', '1d')
+      return history(symbol)
     },
 
     async getQuotes(symbols) {
       if (!viaServer && !token) throw new Error('token ausente')
       // Um ativo por chamada: o plano grátis da brapi recusa mais de 1 (QUOTES_PER_REQUEST_EXCEEDED).
       const results = (await Promise.all(symbols.map((s) => quote(s)))).flat()
-      return Promise.all(
-        results
-          .filter((r) => typeof r.data?.regularMarketPrice === 'number' && Number.isFinite(r.data.regularMarketPrice))
-          .map(async (r) => {
+      return results
+        .filter((r) => typeof r.data?.regularMarketPrice === 'number' && Number.isFinite(r.data.regularMarketPrice))
+        .map((r) => {
           const updatedAt = String(r.data.regularMarketTime)
           return {
             symbol: r.symbol,
@@ -114,10 +105,8 @@ export function createBrapiProvider(
             changePct: Number(r.data.regularMarketChangePercent),
             updatedAt,
             stale: isStale(updatedAt, now()),
-            intraday: await intraday(r.symbol),
           }
-        }),
-      )
+        })
     },
   }
 }

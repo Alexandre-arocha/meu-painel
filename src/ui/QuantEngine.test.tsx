@@ -1,29 +1,16 @@
 import type { ComponentProps } from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QuantEngine } from './QuantEngine'
-import { loadHistory, saveHistory } from '../data/storage'
-import type { Point, PriceProvider } from '../data/prices'
+import type { Point } from '../data/prices'
 import type { Portfolio } from '../domain/portfolio'
-
-const now = () => new Date(2026, 9, 29, 10, 0)
-const TODAY = '2026-10-29'
 
 // Pregões à meia-noite de Brasília (03:00 UTC), como a brapi manda.
 const days = (values: number[]): Point[] => values.map((p, i) => ({ t: new Date(Date.UTC(2026, 7, 1 + i, 3)).toISOString(), p }))
 // BBAS3 cai nos primeiros 20 pregões e sobe 1% ao dia nos 20 seguintes; B3SA3 só oscila.
 const bbas3 = days(Array.from({ length: 40 }, (_, i) => (i < 20 ? 20 - i * 0.2 : 16 * 1.01 ** (i - 20))))
 const b3sa3 = days(Array.from({ length: 40 }, (_, i) => 14 + (i % 2 === 0 ? 0.2 : -0.2)))
-
-const provider =
-  (calls: string[] = []) =>
-  (): PriceProvider => ({
-    getQuotes: async () => [],
-    getHistory: async (symbol) => {
-      calls.push(symbol)
-      return symbol === 'BBAS3' ? bbas3 : b3sa3
-    },
-  })
+const ready = (series: Record<string, Point[]>) => ({ series, error: null, loading: false })
 
 const empty: Portfolio = { holdings: [], fixedIncome: { amount: 0 } }
 const carteira: Portfolio = {
@@ -35,12 +22,10 @@ const carteira: Portfolio = {
 }
 const meta = { fixedIncome: 0.6, BBAS3: 0.2, B3SA3: 0.2 }
 
-beforeEach(() => localStorage.clear())
-
 function renderEngine(over: Partial<ComponentProps<typeof QuantEngine>> = {}) {
   return render(
     <div>
-      <QuantEngine makePrices={provider()} token="tok" portfolio={empty} quotes={[]} now={now} {...over} />
+      <QuantEngine history={ready({ BBAS3: bbas3, B3SA3: b3sa3 })} portfolio={empty} quotes={[]} {...over} />
     </div>,
   )
 }
@@ -101,37 +86,24 @@ test('simulador sem meta pede para definir a meta', async () => {
   expect(await screen.findByText('Defina a meta abaixo para dividir o aporte.')).toBeInTheDocument()
 })
 
-test('usa o histórico guardado de hoje sem buscar de novo', async () => {
-  saveHistory({ day: TODAY, series: { BBAS3: bbas3, B3SA3: b3sa3 } })
-  const calls: string[] = []
-  renderEngine({ makePrices: provider(calls) })
-  expect(await screen.findByRole('img', { name: /Preço ajustado de BBAS3/ })).toBeInTheDocument()
-  expect(calls).toEqual([])
+test('enquanto o histórico carrega, avisa que está buscando', () => {
+  renderEngine({ history: { series: {}, error: null, loading: true } })
+  expect(screen.getByText('Buscando o histórico…')).toBeInTheDocument()
 })
 
-test('histórico guardado de outro dia é buscado de novo e guardado', async () => {
-  saveHistory({ day: '2026-10-28', series: { BBAS3: bbas3, B3SA3: b3sa3 } })
-  const calls: string[] = []
-  renderEngine({ makePrices: provider(calls) })
-  await waitFor(() => expect(loadHistory()?.day).toBe(TODAY))
-  expect([...calls].sort()).toEqual(['B3SA3', 'BBAS3'])
-})
-
-test('histórico curto mostra aviso em vez de números', async () => {
-  const short = (): PriceProvider => ({ getQuotes: async () => [], getHistory: async () => days([10, 11, 12]) })
-  renderEngine({ makePrices: short })
-  expect((await screen.findAllByText(/Histórico curto demais/)).length).toBeGreaterThan(0)
+test('histórico curto mostra aviso em vez de números', () => {
+  renderEngine({ history: ready({ BBAS3: days([10, 11, 12]), B3SA3: days([10, 11, 12]) }) })
+  expect(screen.getAllByText(/Histórico curto demais/).length).toBeGreaterThan(0)
   expect(screen.queryByText('RSI 14 dias')).toBeNull()
 })
 
-test('sem histórico disponível mostra o motivo', async () => {
-  const none = (): PriceProvider => ({ getQuotes: async () => [] })
-  renderEngine({ makePrices: none })
-  expect(await screen.findByText('Histórico indisponível.')).toBeInTheDocument()
+test('sem histórico disponível mostra o motivo', () => {
+  renderEngine({ history: { series: {}, error: 'Histórico indisponível.', loading: false } })
+  expect(screen.getByText('Histórico indisponível.')).toBeInTheDocument()
 })
 
 test('a cotação ao vivo entra como o último dia do gráfico e dos números', async () => {
-  const quotes = [{ symbol: 'BBAS3', price: 25, changePct: 0, updatedAt: '2026-09-10T15:00:00.000Z', stale: false, intraday: [] }]
+  const quotes = [{ symbol: 'BBAS3', price: 25, changePct: 0, updatedAt: '2026-09-10T15:00:00.000Z', stale: false }]
   renderEngine({ quotes })
   const engine = screen.getByRole('region', { name: 'Motor quantitativo' })
   await within(engine).findByRole('img', { name: /Preço ajustado de BBAS3/ })

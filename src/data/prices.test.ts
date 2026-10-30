@@ -2,38 +2,26 @@ import { createBrapiProvider, createProxyPriceProvider, isStale } from './prices
 
 const NOW = new Date('2026-10-28T14:00:00Z') // quarta, 11:00 em Brasília
 
-function fakeFetch(opts: { quoteStatus?: number; historicalOk?: boolean } = {}) {
+// Responde só cotações: o app não pede mais o gráfico do dia, que o plano grátis recusa.
+function fakeFetch(opts: { quoteStatus?: number } = {}) {
   return (async (url: string) => {
-    const u = String(url)
-    if (u.includes('/quote')) {
-      const status = opts.quoteStatus ?? 200
-      const symbol = new URL(u, 'http://x').searchParams.get('symbols') ?? ''
-      return {
-        ok: status === 200,
-        status,
-        json: async () => ({
-          results: [
-            {
-              requestedSymbol: symbol,
-              symbol,
-              changed: false,
-              data: {
-                regularMarketPrice: 30,
-                regularMarketChangePercent: 1.5,
-                regularMarketTime: '2026-10-28T13:58:00Z',
-              },
-            },
-          ],
-        }),
-      }
-    }
-    if (opts.historicalOk === false) return { ok: false, status: 403, json: async () => ({}) }
+    const status = opts.quoteStatus ?? 200
+    const symbol = new URL(String(url), 'http://x').searchParams.get('symbols') ?? ''
     return {
-      ok: true,
-      status: 200,
+      ok: status === 200,
+      status,
       json: async () => ({
         results: [
-          { symbol: 'BBAS3', data: { usedInterval: '15m', usedRange: '1d', historicalDataPrice: [{ date: 1793196000, close: 29.5 }] } },
+          {
+            requestedSymbol: symbol,
+            symbol,
+            changed: false,
+            data: {
+              regularMarketPrice: 30,
+              regularMarketChangePercent: 1.5,
+              regularMarketTime: '2026-10-28T13:58:00Z',
+            },
+          },
         ],
       }),
     }
@@ -43,21 +31,13 @@ function fakeFetch(opts: { quoteStatus?: number; historicalOk?: boolean } = {}) 
 test('getQuotes converte a resposta em Quote', async () => {
   const provider = createBrapiProvider('tok', fakeFetch(), () => NOW)
   const [q] = await provider.getQuotes(['BBAS3'])
-  expect(q).toMatchObject({
+  expect(q).toEqual({
     symbol: 'BBAS3',
     price: 30,
     changePct: 1.5,
     updatedAt: '2026-10-28T13:58:00Z',
     stale: false,
   })
-  expect(q.intraday).toEqual([{ t: new Date(1793196000 * 1000).toISOString(), p: 29.5 }])
-})
-
-test('getQuotes devolve a cotação com intraday vazio se o histórico falhar', async () => {
-  const provider = createBrapiProvider('tok', fakeFetch({ historicalOk: false }), () => NOW)
-  const [q] = await provider.getQuotes(['BBAS3'])
-  expect(q.price).toBe(30)
-  expect(q.intraday).toEqual([])
 })
 
 test('getQuotes ignora cotação sem preço válido em vez de devolver NaN', async () => {
@@ -84,14 +64,14 @@ test('provedor do servidor chama /api/brapi sem Authorization', async () => {
   expect(calls[0]).toEqual({ url: '/api/brapi/quote?symbols=BBAS3', auth: null })
 })
 
-test('getQuotes pede um ativo por chamada, porque o plano grátis da brapi aceita só 1', async () => {
+test('getQuotes pede só a cotação, um ativo por chamada: o plano grátis aceita 1 e recusa o gráfico do dia', async () => {
   const urls: string[] = []
   const f = (async (url: string) => {
     urls.push(String(url))
     return fakeFetch()(url)
   }) as unknown as typeof fetch
   const qs = await createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3', 'B3SA3'])
-  expect(urls.filter((u) => u.includes('/quote'))).toEqual(['/api/brapi/quote?symbols=BBAS3', '/api/brapi/quote?symbols=B3SA3'])
+  expect(urls).toEqual(['/api/brapi/quote?symbols=BBAS3', '/api/brapi/quote?symbols=B3SA3'])
   expect(qs.map((q) => q.symbol)).toEqual(['BBAS3', 'B3SA3'])
 })
 
