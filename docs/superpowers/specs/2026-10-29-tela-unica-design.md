@@ -22,7 +22,7 @@ O dono quer abrir o painel e ver tudo numa tela só, simples e minimalista. Nas 
 
 ## Fora do escopo
 
-- Tirar as outras abas. Elas continuam para editar quantidades, metas e compromissos e para importar questões.
+- Apagar as outras telas. Elas continuam como telas de edição, para quantidades, metas, compromissos e importação de questões.
 - Trocar o gráfico do dia por um de 1 mês. O dono ainda não decidiu.
 
 ## O que seria fracasso
@@ -38,7 +38,7 @@ O dono quer abrir o painel e ver tudo numa tela só, simples e minimalista. Nas 
 
 ## Chamadas minhas (o dono pode trocar)
 
-- **Abas:** continuam, e "Início" passa a ser a tela única.
+- **Abas:** em 29/10 o dono pediu "deixe só essa tela". A barra de abas saiu. As outras telas abrem pelos links de cada seção e têm "‹ Início" no topo para voltar.
 - **Atualizar:** não há botão geral. Os preços atualizam sozinhos a cada 15 minutos, e o feed de notícias tem o próprio Atualizar.
 - **Escolha da questão:** igual a "Questões livres", em que as matérias com mais erros aparecem mais.
 - **Visual:** linhas finas no lugar de caixas e uma cor de destaque. Verde e vermelho só nas variações de preço.

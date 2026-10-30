@@ -58,15 +58,6 @@ function MoonIcon() {
   )
 }
 
-// Ícones da barra de abas do celular (no computador ficam escondidos pelo CSS).
-const TAB_ICONS: Record<Tab, string> = {
-  inicio: 'M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5',
-  investimentos: 'M3 17l6-6 4 4 8-8M14 7h7v7',
-  estudos: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
-  agenda: 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M3 10h18',
-  noticias: 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM7 8h10M7 12h10M7 16h6',
-}
-
 const tabFromHash = (): Tab => TABS.find(([id]) => window.location.hash === `#/${id}`)?.[0] ?? 'inicio'
 
 export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD, fetchFn = fetch }: Props = {}) {
@@ -135,8 +126,13 @@ export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD
   return (
     <>
       <header className="app-head">
+        {tab !== 'inicio' && (
+          <a className="back" href="#/inicio" onClick={() => setTab('inicio')}>
+            Início
+          </a>
+        )}
         <div className="head-row">
-          <h1>Meu painel</h1>
+          <h1>{tab === 'inicio' ? 'Meu painel' : TABS.find(([id]) => id === tab)?.[1]}</h1>
           <div className="head-actions">
             <button
               type="button"
@@ -153,16 +149,6 @@ export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD
             )}
           </div>
         </div>
-        <nav className="tabs" aria-label="Seções">
-          {TABS.map(([id, label]) => (
-            <a key={id} href={`#/${id}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d={TAB_ICONS[id]} />
-              </svg>
-              <span>{label}</span>
-            </a>
-          ))}
-        </nav>
       </header>
       {offline && (
         <p className="page banner" role="status">

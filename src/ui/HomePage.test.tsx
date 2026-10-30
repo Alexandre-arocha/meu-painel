@@ -56,7 +56,7 @@ test('Início mostra a data, os preços e o total da carteira', async () => {
 
 test('Início sem preço mostra traço e o motivo, sem quebrar', async () => {
   renderHome()
-  expect(await screen.findByText('Informe o token da brapi na aba Investimentos para ver os preços.')).toBeInTheDocument()
+  expect(await screen.findByText('Informe o token da brapi em Editar carteira para ver os preços.')).toBeInTheDocument()
   expect(screen.getAllByText('—')).toHaveLength(2)
 })
 

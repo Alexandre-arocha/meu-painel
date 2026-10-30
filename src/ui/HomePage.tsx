@@ -69,7 +69,7 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
   const target = settings.targetAllocation
 
   function allocationNote(): string | null {
-    if (empty) return 'Informe suas quantidades na aba Investimentos.'
+    if (empty) return 'Toque em Editar carteira para informar suas quantidades.'
     if (missingPrice) return 'A divisão aparece quando os preços carregarem.'
     return null
   }
@@ -83,7 +83,7 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
       </div>
       {error && (
         <p className="muted">
-          {error === 'token ausente' ? 'Informe o token da brapi na aba Investimentos para ver os preços.' : error}
+          {error === 'token ausente' ? 'Informe o token da brapi em Editar carteira para ver os preços.' : error}
         </p>
       )}
       <div className="metrics">
@@ -113,6 +113,9 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
         <section aria-label="Notícias">
           <h2>Notícias</h2>
           <NewsFeed news={news} now={now} store={store} limit={8} title="" />
+          <a className="more" href="#/noticias">
+            Ver todas as notícias
+          </a>
         </section>
 
         <section aria-label="Questão do dia">
