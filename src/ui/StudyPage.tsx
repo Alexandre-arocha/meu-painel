@@ -2,8 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { SEED_QUESTIONS } from '../data/questions'
 import { loadAttempts, loadCustomQuestions, saveAttempts, saveCustomQuestions } from '../data/storage'
 import { parseQuestions, pickNext, statsBySubject, wrongQuestions, type Attempt, type Question } from '../domain/study'
+import { QuestionView } from './QuestionView'
 
-const LETTERS = 'ABCDEFGHIJ'
 type Mode = 'livre' | 'erros'
 type Props = { rand?: () => number; now?: () => Date; store?: Storage }
 
@@ -92,34 +92,7 @@ export function StudyPage({ rand = Math.random, now = () => new Date(), store = 
               {mode === 'erros' ? 'Nenhuma questão para revisar. Bom sinal.' : 'Nenhuma questão nesta matéria.'}
             </p>
           ) : (
-            <>
-              <p className="muted">{current.subject}</p>
-              <p className="statement">{current.statement}</p>
-              {current.options.map((o, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={`opt${chosen !== null && i === current.answer ? ' ok' : ''}${chosen === i && i !== current.answer ? ' bad' : ''}`}
-                  disabled={chosen !== null}
-                  onClick={() => answer(i)}
-                >
-                  {LETTERS[i]}) {o}
-                </button>
-              ))}
-              {chosen !== null && (
-                <div className="feedback" aria-live="polite">
-                  <p className={chosen === current.answer ? 'up' : 'dn'}>
-                    {chosen === current.answer
-                      ? 'Correto.'
-                      : `Errado. Resposta certa: ${LETTERS[current.answer]}) ${current.options[current.answer]}.`}
-                  </p>
-                  {current.explanation && <p className="muted">{current.explanation}</p>}
-                  <button type="button" onClick={() => next()}>
-                    Próxima questão
-                  </button>
-                </div>
-              )}
-            </>
+            <QuestionView question={current} chosen={chosen} onAnswer={answer} onNext={() => next()} />
           )}
         </section>
 
