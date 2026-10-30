@@ -4,7 +4,7 @@ Um lugar só para acompanhar investimentos, notícias, estudos para concursos e 
 
 ## O que tem
 
-- **Início:** resumo do dia com preços, meta de questões, erros para revisar, agenda de hoje, próxima data importante com contagem e as três manchetes mais recentes.
+- **Início:** a tela única para usar no dia a dia. No topo ficam a data, os preços de BBAS3 e B3SA3, o total da carteira e o estudo do dia. Logo abaixo vêm o feed de notícias com filtro por tema, a questão do dia para responder na hora, a divisão da carteira contra a meta, a agenda de hoje e a próxima data importante. No celular, tudo vira uma coluna.
 - **Investimentos:** carteira (BBAS3, B3SA3 e renda fixa), preço do dia, notícias com tom, sinal de apoio e divisão atual contra a meta.
 - **Estudos:** banco de questões (Informática/TI, Português, RLM e Constituição/Forças Armadas), caderno de erros, desempenho por matéria e importação das suas questões em JSON. Matérias com mais erros aparecem mais.
 - **Agenda:** plano do dia montado pela sua rotina (trabalho, notícias e estudo), calendário navegável (toque num dia para ver o plano dele), compromissos com duração e repetição semanal (ex.: academia toda segunda e quarta) e datas importantes com contagem regressiva para provas e eventos de mercado.
