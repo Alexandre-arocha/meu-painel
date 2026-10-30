@@ -1,5 +1,5 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
-import type { Quote } from './prices'
+import type { Point, Quote } from './prices'
 import type { NewsItem } from './news'
 import { parseQuestions, type Attempt, type Question } from '../domain/study'
 import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
@@ -86,6 +86,20 @@ export function loadTheme(store: Storage = localStorage): Theme {
 
 export function saveTheme(theme: Theme, store: Storage = localStorage): boolean {
   return write(store, THEME_KEY, theme)
+}
+
+const HISTORY_KEY = 'painel:v1:history'
+export type HistoryCache = { day: string; series: Record<string, Point[]> }
+
+// Histórico diário guardado por dia: 1 chamada por ativo por dia na cota da brapi. Fica fora da sincronização.
+export function loadHistory(store: Storage = localStorage): HistoryCache | null {
+  const data = readJson(store, HISTORY_KEY) as Partial<HistoryCache> | null
+  if (!data || typeof data.day !== 'string' || !data.series || typeof data.series !== 'object') return null
+  return data as HistoryCache
+}
+
+export function saveHistory(h: HistoryCache, store: Storage = localStorage): boolean {
+  return write(store, HISTORY_KEY, h)
 }
 
 const ATTEMPTS_KEY = 'painel:v1:attempts'

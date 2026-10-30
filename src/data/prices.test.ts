@@ -106,6 +106,48 @@ test('erro da brapi mostra o motivo que ela devolve', async () => {
   )
 })
 
+test('getHistory pede 3 meses de fechamentos diários e devolve os pontos válidos', async () => {
+  const urls: string[] = []
+  const f = (async (url: string) => {
+    urls.push(String(url))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            symbol: 'BBAS3',
+            data: {
+              historicalDataPrice: [
+                { date: 1793196000, close: 29.5 },
+                { date: 1793282400, close: null },
+                { date: 1793368800, close: 30 },
+              ],
+            },
+          },
+        ],
+      }),
+    }
+  }) as unknown as typeof fetch
+  const points = await createProxyPriceProvider(f, () => NOW).getHistory!('BBAS3')
+  expect(urls).toEqual(['/api/brapi/historical?symbols=BBAS3&range=3mo&interval=1d'])
+  expect(points).toEqual([
+    { t: new Date(1793196000 * 1000).toISOString(), p: 29.5 },
+    { t: new Date(1793368800 * 1000).toISOString(), p: 30 },
+  ])
+})
+
+test('getHistory com erro traz o motivo da brapi', async () => {
+  const f = (async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: true, message: 'Intervalo não permitido.' }),
+  })) as unknown as typeof fetch
+  await expect(createProxyPriceProvider(f, () => NOW).getHistory!('BBAS3')).rejects.toThrow(
+    'erro ao buscar histórico (400): Intervalo não permitido.',
+  )
+})
+
 test('503 do servidor vira mensagem de token não cadastrado', async () => {
   const f = (async () => ({ ok: false, status: 503, json: async () => ({}) })) as unknown as typeof fetch
   await expect(createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3'])).rejects.toThrow('token da brapi não cadastrado na Vercel')
