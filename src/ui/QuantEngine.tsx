@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { PriceProvider, Quote } from '../data/prices'
 import { parseAmount, type Allocation, type Portfolio } from '../domain/portfolio'
 import {
+  alignByDay,
   annualVol,
   correlation,
   dailyReturns,
@@ -12,16 +13,26 @@ import {
   rsi,
   sma,
   splitContribution,
+  withLivePrice,
 } from '../domain/quant'
-import { localDate, money, pct, ratio } from './format'
-import { LineChart } from './LineChart'
+import { dayMonth, localDate, money, pct, ratio } from './format'
+import { ChartTable, LineChart } from './LineChart'
 import { useHistory } from './useHistory'
 import { SYMBOLS } from './useQuotes'
 
 const MIN_POINTS = 22 // média de 21 dias + 1 pregão
-const COLOR = { price: 'var(--tx)', fast: 'var(--ac)', slow: 'var(--warn)', hold: 'var(--mut)' }
+// Cores que quem tem daltonismo também separa, nos dois temas; "comprar e segurar" fica em cinza, como referência.
+const COLOR = { price: 'var(--viz-1)', fast: 'var(--viz-2)', slow: 'var(--viz-3)', strategy: 'var(--viz-1)', hold: 'var(--mut)' }
 const SHORT = 'Histórico curto demais para os cálculos (precisa de 22 pregões).'
 const WAIT = 'Os cálculos aparecem quando o histórico carregar.'
+const EXPLAIN: [string, string][] = [
+  ['Preço ajustado', 'Cada preço antigo é reduzido pelos proventos pagos depois dele, como dividendos e JCP. Assim o retorno conta o que o acionista recebeu.'],
+  ['Retorno em 3 meses', 'Quanto o preço ajustado subiu ou caiu desde o primeiro dia do gráfico.'],
+  ['Volatilidade ao ano', 'O tamanho das oscilações de um dia para o outro, levado para um ano. Quanto maior, mais o preço sobe e desce.'],
+  ['Maior queda', 'A pior queda de um topo até um fundo no período.'],
+  ['RSI 14 dias', 'Vai de 0 a 100. Acima de 70, o preço subiu rápido nos últimos 14 pregões. Abaixo de 30, caiu rápido.'],
+  ['Preço x média 21', 'Mostra se o preço de agora está acima ou abaixo da média dos últimos 21 pregões, cerca de um mês.'],
+]
 
 type Props = {
   makePrices: (token: string | undefined) => PriceProvider
@@ -64,8 +75,10 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
   const [rateText, setRateText] = useState(String(portfolio.fixedIncome.ratePctYear ?? ''))
   const { series, error, loading } = useHistory(makePrices, token, store, localDate(now()))
 
-  const closes = (s: string) => (series[s] ?? []).map((p) => p.p)
-  const priceOf = (s: string): number | undefined => quotes.find((q) => q.symbol === s)?.price ?? last(closes(s))
+  // O histórico termina na cotação ao vivo, para o gráfico e os números baterem com o preço de agora.
+  const merged = Object.fromEntries(SYMBOLS.map((s) => [s, withLivePrice(series[s] ?? [], quotes.find((q) => q.symbol === s))]))
+  const closes = (s: string) => (merged[s] ?? []).map((p) => p.p)
+  const priceOf = (s: string): number | undefined => last(closes(s)) ?? quotes.find((q) => q.symbol === s)?.price
   const valueOf = (s: string) => (portfolio.holdings.find((h) => h.symbol === s)?.quantity ?? 0) * (priceOf(s) ?? 0)
 
   function statusText(): string {
@@ -74,6 +87,7 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
   }
 
   const values = closes(symbol)
+  const dates = (merged[symbol] ?? []).map((p) => dayMonth(p.t))
   const enough = values.length >= MIN_POINTS
   const slow = sma(values, 21)
   const lastSlow = slow[slow.length - 1]
@@ -82,14 +96,27 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
   const drawdown = maxDrawdown(values)
   const strength = rsi(values)
   const bt = maCrossBacktest(values)
+  const lines = [
+    { label: 'Preço ajustado', values, color: COLOR.price },
+    { label: 'Média 9 dias', values: sma(values, 9), color: COLOR.fast },
+    { label: 'Média 21 dias', values: slow, color: COLOR.slow },
+  ]
+  const results = [
+    { label: 'Estratégia', values: bt.strategy, color: COLOR.strategy },
+    { label: 'Comprar e segurar', values: bt.hold, color: COLOR.hold },
+  ]
+  const growth = (v: number) => pct((v - 1) * 100)
 
   const fixed = portfolio.fixedIncome.amount
-  const stocks = SYMBOLS.map((s) => ({ value: valueOf(s), returns: dailyReturns(closes(s)) })).filter((x) => x.value > 0)
+  const held = SYMBOLS.filter((s) => valueOf(s) > 0)
+  const heldCloses = alignByDay(held.map((s) => merged[s] ?? []))
+  const stocks = held.map((s, i) => ({ value: valueOf(s), returns: dailyReturns(heldCloses[i]) }))
   const missingPrice = portfolio.holdings.some((h) => h.quantity > 0 && priceOf(h.symbol) == null)
   const hasPortfolio = fixed > 0 || portfolio.holdings.some((h) => h.quantity > 0)
   const riskReady = !missingPrice && stocks.every((x) => x.returns.length >= MIN_POINTS - 1)
   const risk = portfolioRisk(stocks, fixed)
-  const corr = correlation(dailyReturns(closes('BBAS3')), dailyReturns(closes('B3SA3')))
+  const [bbas3, b3sa3] = alignByDay([merged.BBAS3 ?? [], merged.B3SA3 ?? []])
+  const corr = correlation(dailyReturns(bbas3), dailyReturns(b3sa3))
 
   const amount = parseAmount(amountText)
   const amountValue = amount.ok ? amount.value : 0
@@ -174,29 +201,16 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
         ) : (
           <>
             {error && <p className="muted">{error} Mostrando o histórico guardado.</p>}
-            <LineChart
-              label={`Preço de ${symbol} e médias de 9 e 21 dias nos últimos 3 meses`}
-              series={[
-                { values, color: COLOR.price },
-                { values: sma(values, 9), color: COLOR.fast },
-                { values: slow, color: COLOR.slow },
-              ]}
-            />
+            <LineChart label={`Preço ajustado de ${symbol} e médias de 9 e 21 dias nos últimos 3 meses`} dates={dates} format={money} series={lines} />
             <p className="legend-line">
-              <span>
-                <i className="swatch" style={{ background: COLOR.price }} />
-                Preço
-              </span>
-              <span>
-                <i className="swatch" style={{ background: COLOR.fast }} />
-                Média 9 dias
-              </span>
-              <span>
-                <i className="swatch" style={{ background: COLOR.slow }} />
-                Média 21 dias
-              </span>
+              {lines.map((s) => (
+                <span key={s.label}>
+                  <i className="swatch" style={{ background: s.color }} />
+                  {s.label}
+                </span>
+              ))}
             </p>
-            <div className="metrics quant-tiles">
+            <div className="metrics quant-tiles" role="group" aria-label="Indicadores">
               <Tile label="Preço" value={money(price)} />
               <Tile label="Retorno em 3 meses" value={pct(change * 100)} tone={change >= 0 ? 'up' : 'dn'} />
               <Tile label="Volatilidade ao ano" value={ratio(annualVol(values))} />
@@ -204,6 +218,18 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
               <Tile label="RSI 14 dias" value={strength == null ? '—' : strength.toFixed(0)} />
               <Tile label="Preço x média 21" value={lastSlow != null && price > lastSlow ? 'Acima' : 'Abaixo'} />
             </div>
+            <details className="more-info">
+              <summary>Como ler os números</summary>
+              <dl>
+                {EXPLAIN.map(([term, text]) => (
+                  <div key={term}>
+                    <dt>{term}</dt>
+                    <dd>{text}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+            <ChartTable dates={dates} format={money} series={lines} />
           </>
         )}
       </section>
@@ -213,20 +239,15 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
         <p className="muted">Cruzamento das médias de 9 e 21 dias em {symbol}.</p>
         {enough ? (
           <>
-            <LineChart
-              height={110}
-              label={`Resultado da estratégia e de comprar e segurar em ${symbol}`}
-              series={[
-                { values: bt.hold, color: COLOR.hold },
-                { values: bt.strategy, color: COLOR.fast },
-              ]}
-            />
-            <ResultRow label="Estratégia" color={COLOR.fast} change={last(bt.strategy) - 1} />
-            <ResultRow label="Comprar e segurar" color={COLOR.hold} change={last(bt.hold) - 1} />
+            <LineChart height={110} label={`Resultado da estratégia e de comprar e segurar em ${symbol}`} dates={dates} format={growth} series={results} />
+            {results.map((s) => (
+              <ResultRow key={s.label} label={s.label} color={s.color} change={last(s.values) - 1} />
+            ))}
             <div className="row">
               <span>Trocas de posição</span>
               <span className="num">{bt.trades}</span>
             </div>
+            <ChartTable dates={dates} format={growth} series={results} />
           </>
         ) : (
           <p className="muted">{WAIT}</p>
@@ -237,7 +258,7 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
       <section className="card" aria-label="Risco da carteira">
         <h2>Risco da carteira</h2>
         {riskBody()}
-        <p className="muted">Estimativa com os últimos 3 meses; a renda fixa entra sem oscilação. Não é recomendação.</p>
+        <p className="muted">Estimativa com os últimos 3 meses; a renda fixa entra sem oscilação. Correlação perto de 1 quer dizer que as duas ações sobem e caem juntas. Não é recomendação.</p>
       </section>
 
       <section className="card" aria-label="Simulador de aportes">
@@ -278,7 +299,7 @@ export function QuantEngine({ makePrices, token, portfolio, target, quotes, now 
           </div>
         </div>
         {simulatorBody()}
-        <p className="muted">Divide o aporte pelo que falta para cada parte chegar à meta. Conta, não recomendação.</p>
+        <p className="muted">Divide o aporte pelo que falta para cada parte chegar à meta. A projeção da renda fixa não desconta o imposto de renda. Conta, não recomendação.</p>
       </section>
     </>
   )

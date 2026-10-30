@@ -106,7 +106,7 @@ test('erro da brapi mostra o motivo que ela devolve', async () => {
   )
 })
 
-test('getHistory pede 3 meses de fechamentos diários e devolve os pontos válidos', async () => {
+test('getHistory pede 3 meses de fechamentos ajustados por proventos, do mais antigo ao mais novo', async () => {
   const urls: string[] = []
   const f = (async (url: string) => {
     urls.push(String(url))
@@ -118,10 +118,11 @@ test('getHistory pede 3 meses de fechamentos diários e devolve os pontos válid
           {
             symbol: 'BBAS3',
             data: {
+              // A brapi manda do mais novo para o mais antigo.
               historicalDataPrice: [
-                { date: 1793196000, close: 29.5 },
-                { date: 1793282400, close: null },
                 { date: 1793368800, close: 30 },
+                { date: 1793282400, close: null, adjustedClose: null },
+                { date: 1793196000, close: 29.5, adjustedClose: 29.1 },
               ],
             },
           },
@@ -132,7 +133,7 @@ test('getHistory pede 3 meses de fechamentos diários e devolve os pontos válid
   const points = await createProxyPriceProvider(f, () => NOW).getHistory!('BBAS3')
   expect(urls).toEqual(['/api/brapi/historical?symbols=BBAS3&range=3mo&interval=1d'])
   expect(points).toEqual([
-    { t: new Date(1793196000 * 1000).toISOString(), p: 29.5 },
+    { t: new Date(1793196000 * 1000).toISOString(), p: 29.1 },
     { t: new Date(1793368800 * 1000).toISOString(), p: 30 },
   ])
 })

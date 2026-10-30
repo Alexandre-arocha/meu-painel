@@ -69,11 +69,12 @@ export function createBrapiProvider(
     const res = await get(`${base}/historical?symbols=${symbol}&range=${range}&interval=${interval}`)
     if (!res.ok) throw await failure(res, 'histórico')
     const body = (await res.json()) as {
-      results?: { data?: { historicalDataPrice?: { date: number; close: number | null }[] } }[]
+      results?: { data?: { historicalDataPrice?: { date: number; close: number | null; adjustedClose?: number | null }[] } }[]
     }
     return (body.results?.[0]?.data?.historicalDataPrice ?? [])
-      .filter((r) => typeof r.close === 'number' && Number.isFinite(r.close))
-      .map((r) => ({ t: new Date(r.date * 1000).toISOString(), p: r.close as number }))
+      // Fechamento ajustado por proventos quando vier: assim o retorno conta dividendos e JCP.
+      .map((r) => ({ t: new Date(r.date * 1000).toISOString(), p: r.adjustedClose ?? r.close }))
+      .filter((x): x is Point => typeof x.p === 'number' && Number.isFinite(x.p))
       .sort((a, b) => a.t.localeCompare(b.t))
   }
 

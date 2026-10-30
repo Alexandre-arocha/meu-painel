@@ -1,4 +1,5 @@
 import {
+  alignByDay,
   annualVol,
   correlation,
   dailyReturns,
@@ -10,6 +11,8 @@ import {
   sma,
   splitContribution,
   stdev,
+  tradingDay,
+  withLivePrice,
 } from './quant'
 
 test('sma calcula a média móvel e deixa null antes de ter dados suficientes', () => {
@@ -35,6 +38,11 @@ test('rsi dá 100 quando só sobe, 50 quando alterna altas e baixas iguais e nul
   expect(rsi([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])).toBe(100)
   expect(rsi(Array.from({ length: 15 }, (_, i) => (i % 2 === 0 ? 10 : 11)))).toBeCloseTo(50)
   expect(rsi([1, 2, 3])).toBeNull()
+})
+
+test('rsi suaviza ganhos e perdas pelo método de Wilder, o padrão das corretoras', () => {
+  // A média simples dos 2 últimos dias daria 50; Wilder guarda a alta forte do começo e dá 60.
+  expect(rsi([1, 3, 4, 3], 2)).toBeCloseTo(60)
 })
 
 test('maCrossBacktest compara a estratégia de médias com comprar e segurar', () => {
@@ -72,4 +80,41 @@ test('splitContribution divide o aporte para chegar perto da meta, em ações in
 test('projectFixedIncome rende juros compostos pela taxa ao ano', () => {
   expect(projectFixedIncome(10000, 11)).toBeCloseTo(11100, 6)
   expect(projectFixedIncome(10000, 11, 24)).toBeCloseTo(12321, 6)
+})
+
+test('tradingDay usa o dia de Brasília', () => {
+  expect(tradingDay('2026-10-30T03:00:00.000Z')).toBe('2026-10-30')
+  expect(tradingDay('2026-10-31T01:00:00.000Z')).toBe('2026-10-30')
+})
+
+test('withLivePrice troca o fechamento de hoje pela cotação ao vivo ou acrescenta o dia novo', () => {
+  const hist = [
+    { t: '2026-10-29T03:00:00.000Z', p: 10 },
+    { t: '2026-10-30T03:00:00.000Z', p: 11 },
+  ]
+  const live = (price: number, updatedAt: string) => ({ price, updatedAt })
+  expect(withLivePrice(hist, live(12, '2026-10-30T17:00:00.000Z')).map((x) => x.p)).toEqual([10, 12])
+  expect(withLivePrice(hist, live(13, '2026-10-31T14:00:00.000Z')).map((x) => x.p)).toEqual([10, 11, 13])
+  expect(withLivePrice(hist, live(9, '2026-10-28T17:00:00.000Z'))).toEqual(hist)
+  expect(withLivePrice(hist, live(9, 'undefined'))).toEqual(hist)
+  expect(withLivePrice(hist, undefined)).toEqual(hist)
+  expect(withLivePrice([], live(9, '2026-10-30T17:00:00.000Z'))).toEqual([])
+})
+
+test('alignByDay deixa só os dias em que todos os ativos negociaram', () => {
+  const a = [
+    { t: '2026-10-28T03:00:00.000Z', p: 10 },
+    { t: '2026-10-29T03:00:00.000Z', p: 11 },
+    { t: '2026-10-30T03:00:00.000Z', p: 12 },
+  ]
+  const b = [
+    { t: '2026-10-29T03:00:00.000Z', p: 20 },
+    { t: '2026-10-30T17:00:00.000Z', p: 21 },
+    { t: '2026-10-31T03:00:00.000Z', p: 22 },
+  ]
+  expect(alignByDay([a, b])).toEqual([
+    [11, 12],
+    [20, 21],
+  ])
+  expect(alignByDay([])).toEqual([])
 })

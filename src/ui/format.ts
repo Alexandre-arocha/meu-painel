@@ -1,3 +1,5 @@
+import { tradingDay } from '../domain/quant'
+
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export const money = (n: number) => brl.format(n)
@@ -9,6 +11,12 @@ export const ratio = (f: number) => `${(f * 100).toFixed(1).replace('.', ',')}%`
 
 export const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+// Dia e mês do pregão, como "30/10".
+export function dayMonth(iso: string): string {
+  const d = tradingDay(iso)
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`
+}
 
 export const dayTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })

@@ -1,3 +1,4 @@
+import type { Point, Quote } from '../data/prices'
 import type { Allocation } from './portfolio'
 
 // Contas do motor quantitativo: descrevem o passado e fazem contas com a meta. Não preveem preço.
@@ -36,19 +37,26 @@ export function maxDrawdown(values: number[]): number {
   return worst
 }
 
-// RSI com média simples dos ganhos e perdas dos últimos n dias; null sem dados suficientes.
+// RSI de Wilder, o das corretoras: média simples dos n primeiros dias, depois suavizada dia a dia; null sem dados suficientes.
 export function rsi(values: number[], n = 14): number | null {
   if (values.length < n + 1) return null
-  let gains = 0
-  let losses = 0
-  for (let i = values.length - n; i < values.length; i++) {
+  let gain = 0
+  let loss = 0
+  for (let i = 1; i < values.length; i++) {
     const d = values[i] - values[i - 1]
-    if (d > 0) gains += d
-    else losses -= d
+    const up = Math.max(d, 0)
+    const down = Math.max(-d, 0)
+    if (i <= n) {
+      gain += up / n
+      loss += down / n
+    } else {
+      gain = (gain * (n - 1) + up) / n
+      loss = (loss * (n - 1) + down) / n
+    }
   }
-  if (gains === 0 && losses === 0) return 50
-  if (losses === 0) return 100
-  return 100 - 100 / (1 + gains / losses)
+  if (gain === 0 && loss === 0) return 50
+  if (loss === 0) return 100
+  return 100 - 100 / (1 + gain / loss)
 }
 
 export type Backtest = { strategy: number[]; hold: number[]; trades: number }
@@ -138,4 +146,27 @@ export function splitContribution(
 
 export function projectFixedIncome(amount: number, ratePctYear: number, months = 12): number {
   return amount * (1 + ratePctYear / 100) ** (months / 12)
+}
+
+// Dia do pregão em Brasília (UTC-3 o ano todo), como AAAA-MM-DD.
+export function tradingDay(iso: string): string {
+  return new Date(Date.parse(iso) - 3 * 3600_000).toISOString().slice(0, 10)
+}
+
+// Junta a cotação ao vivo ao histórico diário: ela troca o fechamento do mesmo dia ou entra como o dia seguinte.
+export function withLivePrice(points: Point[], live?: Pick<Quote, 'price' | 'updatedAt'>): Point[] {
+  const lastPoint = points[points.length - 1]
+  if (!live || !lastPoint || Number.isNaN(Date.parse(live.updatedAt))) return points
+  const day = tradingDay(live.updatedAt)
+  const lastDay = tradingDay(lastPoint.t)
+  if (day < lastDay) return points
+  const point = { t: live.updatedAt, p: live.price }
+  return day === lastDay ? [...points.slice(0, -1), point] : [...points, point]
+}
+
+// Fechamentos de cada série só nos dias em que todas negociaram, para comparar dia com dia.
+export function alignByDay(list: Point[][]): number[][] {
+  const byDay = list.map((points) => new Map(points.map((x) => [tradingDay(x.t), x.p])))
+  const days = [...(byDay[0]?.keys() ?? [])].filter((d) => byDay.every((m) => m.has(d)))
+  return byDay.map((m) => days.map((d) => m.get(d) as number))
 }
