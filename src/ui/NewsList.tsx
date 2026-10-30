@@ -17,7 +17,7 @@ export function NewsList({
 }) {
   return (
     <section className="card wide" aria-label="Notícias">
-      <h2>{title}</h2>
+      {title && <h2>{title}</h2>}
       {items.length === 0 ? (
         <p className="muted">{empty}</p>
       ) : (

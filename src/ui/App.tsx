@@ -117,7 +117,9 @@ export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD
           Sem conexão com o servidor: usando os dados deste aparelho. As mudanças vão quando a conexão voltar.
         </p>
       )}
-      {tab === 'inicio' && <HomePage />}
+      {tab === 'inicio' && (
+        <HomePage makePrices={makePrices ?? defaults.makePrices} news={generalNews ?? defaults.generalNews} />
+      )}
       {tab === 'investimentos' && (
         <InvestmentsPage makePrices={makePrices ?? defaults.makePrices} news={news ?? defaults.news} serverPrices={auth} />
       )}

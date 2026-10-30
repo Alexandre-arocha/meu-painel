@@ -31,7 +31,7 @@ function authApi(loggedIn: boolean) {
 }
 
 test('App com auth e sem sessão mostra a entrada', async () => {
-  render(<App auth fetchFn={authApi(false).fetchFn} makePrices={makePrices} news={news} />)
+  render(<App auth fetchFn={authApi(false).fetchFn} makePrices={makePrices} news={news} generalNews={news} />)
   expect(await screen.findByLabelText('Senha')).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'Início' })).toBeNull()
 })
@@ -39,7 +39,7 @@ test('App com auth e sem sessão mostra a entrada', async () => {
 test('entrar sincroniza e mostra o Início', async () => {
   const user = userEvent.setup()
   const api = authApi(false)
-  render(<App auth fetchFn={api.fetchFn} makePrices={makePrices} news={news} />)
+  render(<App auth fetchFn={api.fetchFn} makePrices={makePrices} news={news} generalNews={news} />)
   await user.type(await screen.findByLabelText('Senha'), 'qualquer')
   await user.click(screen.getByRole('button', { name: 'Entrar' }))
   expect(await screen.findByRole('link', { name: 'Início' })).toBeInTheDocument()
@@ -48,20 +48,20 @@ test('entrar sincroniza e mostra o Início', async () => {
 
 test('Sair volta para a entrada', async () => {
   const user = userEvent.setup()
-  render(<App auth fetchFn={authApi(true).fetchFn} makePrices={makePrices} news={news} />)
+  render(<App auth fetchFn={authApi(true).fetchFn} makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(await screen.findByRole('button', { name: 'Sair' }))
   expect(await screen.findByLabelText('Senha')).toBeInTheDocument()
 })
 
 test('App abre no Início com o título', () => {
-  render(<App makePrices={makePrices} news={news} />)
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
   expect(screen.getByText('Meu painel')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
 })
 
 test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => {
   const user = userEvent.setup()
-  render(<App makePrices={makePrices} news={news} />)
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(screen.getByRole('link', { name: 'Investimentos' }))
   expect(await screen.findByText(/não é previsão garantida/i)).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toBeInTheDocument()
@@ -69,7 +69,7 @@ test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => 
 
 test('navegar para Agenda mostra o plano de hoje', async () => {
   const user = userEvent.setup()
-  render(<App makePrices={makePrices} news={news} />)
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(screen.getByRole('link', { name: 'Agenda' }))
   expect(await screen.findByRole('heading', { name: 'Hoje, montado a partir da sua rotina' })).toBeInTheDocument()
 })
@@ -83,7 +83,7 @@ test('navegar para Notícias mostra os filtros de tema', async () => {
 
 test('navegar para Estudos mostra a questão', async () => {
   const user = userEvent.setup()
-  render(<App makePrices={makePrices} news={news} />)
+  render(<App makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(screen.getByRole('link', { name: 'Estudos' }))
   expect(await screen.findByRole('heading', { name: 'Questão' })).toBeInTheDocument()
 })
