@@ -1,8 +1,10 @@
 import {
   CLASSES,
   classOf,
+  dayChange,
   fromLegacy,
   labelOf,
+  maturityEvents,
   parseAmount,
   priceKey,
   readPositions,
@@ -126,6 +128,30 @@ test('totals soma em reais por classe; ativo sem preço fica de fora e é avisad
   expect(t.total).toBe(2000 + 3600 + 10000 + 3000)
   expect(t.byClass).toEqual({ 'renda-fixa': 10000, acoes: 2000, fiis: 0, etfs: 0, exterior: 3600, cripto: 0, moedas: 0, fundos: 3000 })
   expect(t.missing).toEqual(['crypto:bitcoin'])
+})
+
+test('dayChange soma a variação do dia em reais; renda fixa não oscila; sem cotação, null', () => {
+  const positions: Position[] = [
+    { id: '1', kind: 'acao', symbol: 'BBAS3', quantity: 100 },
+    { id: '2', kind: 'renda-fixa', name: 'CDB', amount: 10000 },
+  ]
+  // 100 x R$ 21 com alta de 5%: ontem valiam R$ 2.000, hoje R$ 2.100. A carteira valia R$ 12.000.
+  const d = dayChange(positions, [{ symbol: 'b3:BBAS3', price: 21, changePct: 5 }])
+  expect(d?.value).toBeCloseTo(100)
+  expect(d?.pct).toBeCloseTo((100 / 12000) * 100)
+  expect(dayChange(positions, [])).toBeNull()
+  expect(dayChange([], [])).toBeNull()
+  // Só renda fixa: não há variação do dia para mostrar.
+  expect(dayChange([positions[1]], [])).toBeNull()
+})
+
+test('maturityEvents põe o vencimento de cada título na agenda como data de mercado', () => {
+  const positions: Position[] = [
+    { id: 'r', kind: 'renda-fixa', name: 'CDB Inter', amount: 5000, subtype: 'cdb', maturity: '2027-01-15' },
+    { id: 'f', kind: 'fundo', name: 'Fundo X', amount: 1000 },
+    { id: 'a', kind: 'acao', symbol: 'BBAS3', quantity: 10 },
+  ]
+  expect(maturityEvents(positions)).toEqual([{ id: 'vence-r', title: 'Vence: CDB Inter', date: '2027-01-15', kind: 'mercado' }])
 })
 
 test('fromLegacy traz BBAS3, B3SA3 e a renda fixa da carteira antiga, com ids fixos', () => {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AgendaPage } from './AgendaPage'
-import { loadEvents, loadRoutine } from '../data/storage'
+import { loadEvents, loadRoutine, savePositions } from '../data/storage'
 import { DEFAULT_ROUTINE } from '../domain/agenda'
 
 const now = () => new Date(2026, 9, 28, 9, 0) // quarta-feira
@@ -48,6 +48,15 @@ test('próximo mês mostra novembro de 2026', async () => {
   expect(screen.getByRole('heading', { name: 'novembro de 2026' })).toBeInTheDocument()
 })
 
+test('Voltar para hoje leva o calendário de volta ao mês de hoje', async () => {
+  const user = userEvent.setup()
+  render(<AgendaPage now={now} />)
+  await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
+  await user.click(screen.getByRole('button', { name: /^10 de novembro/ }))
+  await user.click(screen.getByRole('button', { name: 'Voltar para hoje' }))
+  expect(screen.getByRole('heading', { name: 'outubro de 2026' })).toBeInTheDocument()
+})
+
 test('clicar num dia mostra o plano daquele dia', async () => {
   const user = userEvent.setup()
   render(<AgendaPage now={now} />)
@@ -79,6 +88,17 @@ test('duração inválida mostra erro', async () => {
   await user.type(duration, '2')
   await user.click(screen.getByRole('button', { name: 'Adicionar' }))
   expect(screen.getByText('duração entre 5 e 720 minutos')).toBeInTheDocument()
+  expect(loadEvents()).toEqual([])
+})
+
+test('o vencimento de um título aparece nas datas e no dia dele, sem ser salvo nem ter Remover', async () => {
+  const user = userEvent.setup()
+  savePositions([{ id: 'r', kind: 'renda-fixa', name: 'CDB Inter', amount: 5000, subtype: 'cdb', maturity: '2026-10-30' }])
+  render(<AgendaPage now={now} />)
+  expect(within(screen.getByRole('region', { name: 'Datas importantes' })).getByText('Vence: CDB Inter')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /^30 de outubro, 1 compromisso/ }))
+  expect(within(screen.getByRole('region', { name: 'Plano do dia' })).getByText('Vence: CDB Inter')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Remover Vence: CDB Inter' })).toBeNull()
   expect(loadEvents()).toEqual([])
 })
 

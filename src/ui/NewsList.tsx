@@ -13,27 +13,37 @@ function Thumb({ src }: { src: string }) {
   return <img className="thumb" src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setOk(false)} />
 }
 
+// Lista simples, cartões (aba Notícias) ou manchete com foto grande e o resto em lista (Início).
+export type NewsLayout = 'list' | 'cards' | 'lead'
+
+// No destaque, a primeira notícia com foto abre a lista.
+function leadFirst(items: NewsItem[]): NewsItem[] {
+  const i = items.findIndex((n) => n.image)
+  return i > 0 ? [items[i], ...items.slice(0, i), ...items.slice(i + 1)] : items
+}
+
 export function NewsList({
   items,
   now,
   title = 'Notícias das suas ações',
   empty = 'Nenhuma notícia por enquanto.',
-  cards = false,
+  layout = 'list',
 }: {
   items: NewsItem[]
   now: Date
   title?: string
   empty?: string
-  cards?: boolean
+  layout?: NewsLayout
 }) {
+  const shown = layout === 'lead' ? leadFirst(items) : items
   return (
     <section className="card wide" aria-label="Notícias">
       {title && <h2>{title}</h2>}
       {items.length === 0 ? (
         <p className="muted">{empty}</p>
       ) : (
-        <ul className={cards ? 'news cards' : 'news'}>
-          {items.map((n) => {
+        <ul className={layout === 'list' ? 'news' : `news ${layout}`}>
+          {shown.map((n) => {
             const href = safeLink(n.link)
             const topics = n.tags.filter((t) => t !== 'Seus ativos').join(' · ')
             const foreign = !!n.lang && n.lang !== 'pt'

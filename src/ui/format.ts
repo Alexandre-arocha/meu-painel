@@ -4,6 +4,20 @@ const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export const money = (n: number) => brl.format(n)
 
+// Ganho ou perda em reais com sinal: "+R$ 210,40" ou "-R$ 33,08".
+export const signedMoney = (n: number) => `${n > 0 ? '+' : ''}${money(n)}`
+
+const compact = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
+// Valor grande em reais, curto: "R$ 612 mil".
+export const shortMoney = (n: number) => compact.format(n)
+
+const pts = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
+// Pontos de índice, como "131.246".
+export const points = (n: number) => pts.format(n)
+
+// Dias da semana a partir do domingo (0 = domingo, como em Date.getDay).
+export const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
 const dec = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 8 })
 // Quantidade com fração, como "0,005" ou "1.500".
 export const decimal = (n: number) => dec.format(n)

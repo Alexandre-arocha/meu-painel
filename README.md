@@ -4,13 +4,17 @@ Um lugar só para acompanhar investimentos, notícias e agenda.
 
 ## O que tem
 
-- **Início:** a tela única para usar no dia a dia. No topo ficam a data, os preços dos três maiores ativos com cotação e o total da carteira. Logo abaixo vêm o feed de notícias com filtro por tema, a divisão da carteira por classe contra a meta, a agenda de hoje e a próxima data importante. No celular, tudo vira uma coluna.
+- **Início:** a tela do dia a dia, em três partes.
+  - **Investimentos:** Ibovespa, dólar, S&P 500 e Bitcoin do dia; o patrimônio com a variação do dia em reais e em %; uma barra fina com a divisão por classe e a meta de cada uma; e os seis maiores ativos com cotação. Sem nada cadastrado, um botão leva ao cadastro.
+  - **Calendário:** o mês com os dias de compromisso marcados. Tocar num dia mostra o que há nele. Embaixo ficam as próximas datas, com os vencimentos da renda fixa.
+  - **Notícias:** os temas, a manchete com foto grande e as demais com miniatura.
+  - **Arrumação:** no computador, três colunas (notícias, investimentos e calendário). Entre 900 e 1099 px, investimentos vai para cima. No celular, uma coluna na ordem investimentos, calendário e notícias.
 - **Investimentos:** cadastro manual de qualquer investimento.
   - **Com cotação automática:** ações, FIIs, ETFs e BDRs da B3; ações e ETFs dos EUA, em reais pelo dólar do dia; criptomoedas; dólar e outras moedas. O código é conferido antes de salvar.
   - **Com valor digitado:** renda fixa (Tesouro Selic, IPCA+ e Prefixado, CDB, LCI, LCA, debênture, CRI/CRA e poupança, com índice, taxa e vencimento), fundos e previdência (PGBL ou VGBL).
   - **Na tela:** a lista por classe com o valor e a variação do dia; o motor quantitativo de cada ativo com cotação, com o sinal das notícias; o risco da carteira; o simulador de aportes; e a divisão pelas 8 classes contra a meta.
   - **Carteira antiga:** BBAS3, B3SA3 e a renda fixa da versão anterior entram sozinhas na lista nova, uma vez.
-- **Agenda:** plano do dia montado pela sua rotina (notícias antes do trabalho e o trabalho), calendário navegável (toque num dia para ver o plano dele), compromissos com duração e repetição semanal (ex.: academia toda segunda e quarta) e datas importantes com contagem regressiva para provas e eventos de mercado.
+- **Agenda:** plano do dia montado pela sua rotina (notícias antes do trabalho e o trabalho), calendário navegável (toque num dia para ver o plano dele), compromissos com duração e repetição semanal (ex.: academia toda segunda e quarta) e datas importantes com contagem regressiva para provas e eventos de mercado. Os vencimentos da renda fixa entram sozinhos no calendário e nas datas, a partir da carteira, sem precisar cadastrar.
 - **Notícias:** feed com foto de 15 fontes do Brasil e do mundo (g1, InfoMoney, TecMundo, BBC, The Guardian, The New York Times, Le Monde, El País, Der Spiegel e The Verge), com os temas Mercado, Mundo, Política, Tecnologia e Seus ativos (notícias que citam os códigos e os nomes da sua carteira). As notícias de fora são traduzidas para o português pelo DeepL; sem tradução, aparecem no original com a língua indicada. Tocar numa notícia abre a matéria em nova aba. Sem conexão, mostra as últimas notícias salvas.
 
 Tudo fica salvo só no seu navegador (localStorage). Funciona no celular e no computador e pode ser instalado como app (PWA).

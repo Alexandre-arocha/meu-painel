@@ -4,14 +4,27 @@ import type { NewsSource } from '../data/news'
 import type { PriceProvider } from '../data/prices'
 import { loadEvents, loadPositions, loadRoutine, loadSettings } from '../data/storage'
 import { countdownLabel, importantDates, planDay } from '../domain/agenda'
-import { CLASSES, isPriced, labelOf, positionValue, priceKey, resolveTargets, totals } from '../domain/portfolio'
-import { hhmm, localDate, longDate, money, pct } from './format'
+import {
+  CLASSES,
+  dayChange,
+  isPriced,
+  labelOf,
+  maturityEvents,
+  positionValue,
+  priceKey,
+  resolveTargets,
+  totals,
+} from '../domain/portfolio'
+import { hhmm, localDate, longDate, money, pct, signedMoney } from './format'
+import { MarketStrip } from './MarketStrip'
+import { MonthCalendar } from './MonthCalendar'
 import { NewsFeed } from './NewsFeed'
 import { usePrices } from './usePrices'
 
 const defaultMarkets = createMarkets()
-const TOP = 3 // ativos com cotação na linha de números
+const TOP = 6 // ativos com cotação na lista do Início
 const percent = (n: number) => `${Math.round(n * 100)}%`
+const tone = (n: number) => (n >= 0 ? 'up' : 'dn')
 
 type Props = {
   makePrices: (token: string | undefined) => PriceProvider
@@ -21,38 +34,42 @@ type Props = {
   store?: Storage
 }
 
-// Tela única: números do dia, notícias, carteira e agenda. No celular vira uma coluna nessa ordem.
+// Tela inicial em três partes: investimentos, calendário e notícias, nessa ordem no celular.
+// No computador elas viram colunas: notícias, investimentos e calendário.
 export function HomePage({ makePrices, markets = defaultMarkets, news, now = () => new Date(), store = localStorage }: Props) {
   const [settings] = useState(() => loadSettings(store))
   const [positions] = useState(() => loadPositions(store))
   const { quotes, error } = usePrices(positions, { makePrices, token: settings.brapiToken, markets, store, now })
-
   const today = localDate(now())
-  const events = loadEvents(store)
-  const plan = planDay(today, loadRoutine(store), events)
-  const nextDate = importantDates(events, today, 1)[0]
+  const [selected, setSelected] = useState(today)
+
+  // Os vencimentos da renda fixa entram no calendário junto com os compromissos.
+  const events = [...loadEvents(store), ...maturityEvents(positions)]
+  const plan = planDay(selected, loadRoutine(store), events)
+  const upcoming = importantDates(events, today, 3)
 
   const prices = Object.fromEntries(quotes.map((q) => [q.symbol, q.price]))
   const sums = totals(positions, prices)
-  const missingPrice = sums.missing.length > 0
+  const ready = sums.missing.length === 0 && sums.total > 0
+  // Com um preço velho na conta, a variação já não é a do dia: ela some até a fonte voltar.
+  const change = ready ? dayChange(positions, quotes.filter((q) => !q.stale)) : null
   const target = resolveTargets(settings)
+  // As classes com valor pegam as cores da paleta em ordem: vizinhas na barra são sempre vizinhas na paleta, o único
+  // jeito de as 8 cores passarem no teste de daltonismo. Classe só com meta entra na legenda, sem cor.
+  const held = CLASSES.filter((c) => sums.byClass[c.id] > 0)
+  const classes = CLASSES.filter((c) => sums.byClass[c.id] > 0 || (target?.[c.id] ?? 0) > 0).map((c) => {
+    const slot = held.indexOf(c)
+    return { ...c, value: sums.byClass[c.id], goal: target?.[c.id] ?? 0, color: slot >= 0 ? `var(--viz-${slot + 1})` : undefined }
+  })
   // Os maiores ativos com cotação; enquanto não há preço, vale a ordem do cadastro.
   const top = positions
     .filter(isPriced)
-    .map((p) => ({ key: priceKey(p), label: labelOf(p), value: positionValue(p, prices) ?? 0 }))
-    .sort((a, b) => b.value - a.value)
+    .map((p) => ({ id: p.id, key: priceKey(p), label: labelOf(p), value: positionValue(p, prices) }))
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
     .slice(0, TOP)
-  const shown = CLASSES.filter((c) => sums.byClass[c.id] > 0)
-
-  function allocationNote(): string | null {
-    if (positions.length === 0) return 'Toque em Editar carteira para cadastrar seus investimentos.'
-    if (missingPrice) return 'A divisão aparece quando os preços carregarem.'
-    return null
-  }
-  const note = allocationNote()
 
   return (
-    <div className="page today">
+    <div className="page">
       <div className="today-head">
         <p className="today-date">{longDate(now())}</p>
         {quotes[0] && <span className="muted">preços de {hhmm(quotes[0].updatedAt)}</span>}
@@ -62,79 +79,113 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
           {error === 'token ausente' ? 'Informe o token da brapi em Editar carteira para ver os preços.' : error}
         </p>
       )}
-      <div className="metrics">
-        {top.map((a) => {
-          const q = quotes.find((x) => x.symbol === a.key)
-          return (
-            <div className="metric" key={a.key}>
-              <span className="muted">{a.label}</span>
-              <b className="num">{q ? money(q.price) : '—'}</b>
-              {q && <span className={`num ${q.changePct >= 0 ? 'up' : 'dn'}`}>{pct(q.changePct)}</span>}
-            </div>
-          )
-        })}
-        <div className="metric">
-          <span className="muted">Carteira</span>
-          <b className="num">{missingPrice ? '—' : money(sums.total)}</b>
-          {!missingPrice && sums.total > 0 && <span className="muted">{percent(sums.byClass['renda-fixa'] / sums.total)} em renda fixa</span>}
-        </div>
-      </div>
 
-      <div className="cols">
-        <section aria-label="Notícias">
-          <h2>Notícias</h2>
-          <NewsFeed news={news} now={now} store={store} limit={8} title="" />
-          <a className="more" href="#/noticias">
-            Ver todas as notícias
-          </a>
+      <div className="home">
+        <section className="home-invest" aria-label="Investimentos">
+          <h2>Investimentos</h2>
+          <MarketStrip markets={markets} />
+          {positions.length === 0 ? (
+            <div className="empty">
+              <p className="muted">Cadastre o que você tem para ver o patrimônio, a variação do dia e a divisão por classe.</p>
+              <a className="button" href="#/investimentos">
+                Cadastrar investimentos
+              </a>
+            </div>
+          ) : (
+            <>
+              <div className="worth">
+                <span className="muted">Patrimônio</span>
+                <b className="num">{ready ? money(sums.total) : '—'}</b>
+                {change && (
+                  <span className={`num ${tone(change.value)}`}>
+                    {signedMoney(change.value)} ({pct(change.pct)}) no dia
+                  </span>
+                )}
+              </div>
+              {ready ? (
+                <>
+                  <div className="class-bar" aria-hidden="true">
+                    {classes
+                      .filter((c) => c.color)
+                      .map((c) => (
+                        <i key={c.id} style={{ flexGrow: c.value, background: c.color }} />
+                      ))}
+                  </div>
+                  <ul className="class-legend" aria-label="Divisão por classe">
+                    {classes.map((c) => (
+                      <li key={c.id}>
+                        <span className="dot" style={{ background: c.color ?? 'var(--bd)' }} aria-hidden="true" />
+                        <span>{c.label}</span>
+                        <span className="num muted">
+                          {percent(c.value / sums.total)}
+                          {target ? ` · meta ${percent(c.goal)}` : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="muted">A divisão aparece quando os preços carregarem.</p>
+              )}
+              {top.length > 0 && (
+                <ul className="list assets" aria-label="Seus ativos">
+                  {top.map((a) => {
+                    const q = quotes.find((x) => x.symbol === a.key)
+                    return (
+                      <li key={a.id}>
+                        <span className="asset-name">{a.label}</span>
+                        <span className={`num ${q ? tone(q.changePct) : ''}`}>{q && pct(q.changePct)}</span>
+                        <span className="num">{a.value === null ? '—' : money(a.value)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <a className="more" href="#/investimentos">
+                Editar carteira
+              </a>
+            </>
+          )}
         </section>
 
-        <section aria-label="Carteira e agenda">
-          <h2>Carteira</h2>
-          {note ? (
-            <p className="muted">{note}</p>
-          ) : (
-            shown.map((c) => (
-              <div className="alloc" key={c.id}>
-                <div className="alloc-row">
-                  <span>{c.label}</span>
-                  <span className="num">
-                    {percent(sums.byClass[c.id] / sums.total)}
-                    {target ? ` · meta ${percent(target[c.id])}` : ''}
-                  </span>
-                </div>
-                <div className="bar" aria-hidden="true">
-                  <i style={{ width: percent(sums.byClass[c.id] / sums.total) }} />
-                </div>
-              </div>
-            ))
-          )}
-          <a className="more" href="#/investimentos">
-            Editar carteira
-          </a>
-
-          <h2>Hoje</h2>
+        <section className="home-cal" aria-label="Calendário">
+          <h2>Calendário</h2>
+          <MonthCalendar events={events} today={today} selected={selected} onSelect={setSelected} />
+          <h3 className="sub">{selected === today ? 'Hoje' : longDate(new Date(`${selected}T12:00:00`))}</h3>
           {plan.length === 0 ? (
-            <p className="muted">Nada para hoje.</p>
+            <p className="muted">Nada para este dia.</p>
           ) : (
-            <ul className="list">
-              {plan.slice(0, 5).map((b, i) => (
-                <li key={i}>
-                  <span className="num muted">{b.start || 'Dia todo'}</span> {b.title}
+            <ul className="tl">
+              {plan.map((b, i) => (
+                <li key={i} className={b.kind}>
+                  <span className="num">{b.start ? `${b.start}–${b.end}` : 'Dia todo'}</span> {b.title}
                 </li>
               ))}
             </ul>
           )}
-          {nextDate && (
-            <div className="row">
-              <span>Próxima data</span>
-              <span>
-                {nextDate.event.title} · {countdownLabel(nextDate.days)}
-              </span>
-            </div>
+          {upcoming.length > 0 && (
+            <>
+              <h3 className="sub">Próximas datas</h3>
+              <ul className="list">
+                {upcoming.map(({ event, days }) => (
+                  <li key={event.id} className="item">
+                    <span>{event.title}</span>
+                    <span className="pill warn">{countdownLabel(days)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
           <a className="more" href="#/agenda">
             Abrir agenda
+          </a>
+        </section>
+
+        <section className="home-news" aria-label="Notícias">
+          <h2>Notícias</h2>
+          <NewsFeed news={news} now={now} store={store} limit={8} title="" layout="lead" />
+          <a className="more" href="#/noticias">
+            Ver todas as notícias
           </a>
         </section>
       </div>

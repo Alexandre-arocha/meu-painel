@@ -4,7 +4,7 @@ import { loadNews, loadPositions, loadTranslations, saveNews, saveTranslations }
 import { createTranslator, translateNews, type Translator } from '../data/translate'
 import { lexiconClassifier } from '../domain/tone'
 import { dayTime, hhmm } from './format'
-import { NewsList } from './NewsList'
+import { NewsList, type NewsLayout } from './NewsList'
 
 const TOPICS = ['Tudo', 'Mercado', 'Mundo', 'Política', 'Tecnologia', 'Seus ativos']
 const PAGE = 20
@@ -18,7 +18,7 @@ export type NewsFeedProps = {
   limit?: number
   title?: string
   translate?: Translator
-  layout?: 'list' | 'cards'
+  layout?: NewsLayout
 }
 
 // Feed com temas, Atualizar e as notícias salvas quando a busca falha. Usado na aba Notícias e no Início.
@@ -133,7 +133,7 @@ export function NewsFeed({
           items={visible}
           now={now()}
           title={title}
-          cards={layout === 'cards'}
+          layout={layout}
           empty={topic === 'Tudo' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
         />
       </div>
