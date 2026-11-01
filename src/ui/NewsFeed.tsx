@@ -4,7 +4,7 @@ import { loadNews, saveNews } from '../data/storage'
 import { dayTime, hhmm } from './format'
 import { NewsList } from './NewsList'
 
-const TOPICS = ['Todas', 'Carteira', 'Mercado', 'Tecnologia']
+const TOPICS = ['Tudo', 'Mercado', 'Mundo', 'Política', 'Tecnologia', 'Seus ativos']
 
 type Status = { kind: 'loading' } | { kind: 'fresh'; at: string } | { kind: 'saved'; at: string } | { kind: 'failed' }
 type Props = { news: NewsSource; now?: () => Date; store?: Storage; limit?: number; title?: string }
@@ -13,7 +13,7 @@ type Props = { news: NewsSource; now?: () => Date; store?: Storage; limit?: numb
 export function NewsFeed({ news, now = () => new Date(), store = localStorage, limit, title = 'Feed de notícias' }: Props) {
   const [items, setItems] = useState<NewsItem[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
-  const [topic, setTopic] = useState('Todas')
+  const [topic, setTopic] = useState('Tudo')
   const [round, setRound] = useState(0)
 
   // `now` fica fora das dependências: é só o relógio, e a função padrão muda a cada render.
@@ -47,7 +47,7 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
     }
   }, [news, store, round])
 
-  const shown = topic === 'Todas' ? items : items.filter((i) => i.tags.includes(topic))
+  const shown = topic === 'Tudo' ? items : items.filter((i) => i.tags.includes(topic))
   const loading = status.kind === 'loading'
 
   return (
@@ -82,7 +82,7 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
           items={limit ? shown.slice(0, limit) : shown}
           now={now()}
           title={title}
-          empty={topic === 'Todas' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
+          empty={topic === 'Tudo' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
         />
       </div>
     </>

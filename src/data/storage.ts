@@ -1,6 +1,6 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
 import type { Point, Quote } from './prices'
-import type { NewsItem } from './news'
+import { safeImage, type NewsItem } from './news'
 import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
@@ -161,19 +161,26 @@ export function saveNews(cache: NewsCache, store: Storage = localStorage): boole
 export function loadNews(store: Storage = localStorage): NewsCache | null {
   const d = readJson(store, NEWS_KEY) as Partial<NewsCache> | null
   if (!d || typeof d.at !== 'string' || !Array.isArray(d.items)) return null
-  const items = d.items.filter(
-    (i): i is NewsItem =>
-      !!i &&
-      typeof i.id === 'string' &&
-      typeof i.title === 'string' &&
-      i.title.trim() !== '' &&
-      (i.link === null || typeof i.link === 'string') &&
-      typeof i.source === 'string' &&
-      (i.publishedAt === null || typeof i.publishedAt === 'string') &&
-      Array.isArray(i.tags) &&
-      i.tags.every((t) => typeof t === 'string') &&
-      TONES.includes(i.tone) &&
-      typeof i.reason === 'string',
-  )
+  const items = d.items
+    .filter(
+      (i): i is NewsItem =>
+        !!i &&
+        typeof i.id === 'string' &&
+        typeof i.title === 'string' &&
+        i.title.trim() !== '' &&
+        (i.link === null || typeof i.link === 'string') &&
+        typeof i.source === 'string' &&
+        (i.publishedAt === null || typeof i.publishedAt === 'string') &&
+        Array.isArray(i.tags) &&
+        i.tags.every((t) => typeof t === 'string') &&
+        TONES.includes(i.tone) &&
+        typeof i.reason === 'string' &&
+        (i.lang === undefined || typeof i.lang === 'string') &&
+        (i.original === undefined || typeof i.original === 'string'),
+    )
+    .map(({ image, ...rest }) => {
+      const safe = safeImage(image)
+      return safe ? { ...rest, image: safe } : rest
+    })
   return { at: d.at, items }
 }

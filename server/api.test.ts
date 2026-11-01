@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { handleBrapi, handleData, handleLogin, handleLogout, handleNews, handleSession, type Deps, type Kv } from './api.js'
+import { handleBrapi, handleData, handleFeed, handleLogin, handleLogout, handleNews, handleSession, type Deps, type Kv } from './api.js'
 import { SESSION_COOKIE, signSession } from './session.js'
 
 const SECRET = 'senha-de-teste' // valor de teste
@@ -99,6 +99,28 @@ test('brapi repassa a query com o token do servidor e só aceita quote e histori
   expect(res.status).toBe(200)
   expect(calls).toEqual([{ url: 'https://brapi.dev/api/v2/stocks/quote?symbols=BBAS3,B3SA3', auth: 'Bearer token-de-teste' }])
   expect((await handleBrapi(await withSession('https://x/api/brapi/list'), 'list', deps({ fetchFn }))).status).toBe(404)
+})
+
+test('feed exige sessão, aceita só ids da lista e devolve o RSS', async () => {
+  const urls: string[] = []
+  const fetchFn = (async (url: string) => {
+    urls.push(String(url))
+    return new Response('<rss/>', { status: 200 })
+  }) as unknown as typeof fetch
+  expect((await handleFeed(new Request('https://x/api/news/feed?src=bbc-world'), deps({ fetchFn }))).status).toBe(401)
+  for (const bad of ['https://evil.test/feed', 'toString', '']) {
+    expect((await handleFeed(await withSession(`https://x/api/news/feed?src=${encodeURIComponent(bad)}`), deps({ fetchFn }))).status).toBe(404)
+  }
+  const res = await handleFeed(await withSession('https://x/api/news/feed?src=bbc-world'), deps({ fetchFn }))
+  expect(res.status).toBe(200)
+  expect(res.headers.get('content-type')).toContain('xml')
+  expect(await res.text()).toBe('<rss/>')
+  expect(urls).toEqual(['https://feeds.bbci.co.uk/news/world/rss.xml'])
+})
+
+test('feed fora do ar vira 502', async () => {
+  const fetchFn = (async () => new Response('x', { status: 503 })) as unknown as typeof fetch
+  expect((await handleFeed(await withSession('https://x/api/news/feed?src=g1-economia'), deps({ fetchFn }))).status).toBe(502)
 })
 
 test('brapi sem BRAPI_TOKEN devolve 503', async () => {

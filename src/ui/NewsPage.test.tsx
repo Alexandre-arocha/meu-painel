@@ -44,14 +44,14 @@ test('notícia com link perigoso aparece sem link', async () => {
   expect(screen.queryByRole('link', { name: 'Golpe' })).toBeNull()
 })
 
-test('filtro Carteira mostra só notícias que citam BB ou B3', async () => {
+test('filtro Seus ativos mostra só notícias que citam BB ou B3', async () => {
   const user = userEvent.setup()
   const news = {
     fetchNews: async () => [item('Banco do Brasil anuncia dividendos', 'Mercado'), item('Chip novo', 'Tecnologia')],
   }
   render(<NewsPage news={news} />)
   await screen.findByText('Chip novo')
-  await user.click(screen.getByRole('button', { name: 'Carteira' }))
+  await user.click(screen.getByRole('button', { name: 'Seus ativos' }))
   expect(screen.getByText('Banco do Brasil anuncia dividendos')).toBeInTheDocument()
   expect(screen.queryByText('Chip novo')).toBeNull()
 })

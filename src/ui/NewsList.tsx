@@ -24,7 +24,7 @@ export function NewsList({
         <ul className="news">
           {items.slice(0, 20).map((n) => {
             const href = safeLink(n.link)
-            const topics = n.tags.filter((t) => t !== 'Carteira').join(' · ')
+            const topics = n.tags.filter((t) => t !== 'Seus ativos').join(' · ')
             return (
               <li key={n.id}>
                 <div>
@@ -40,7 +40,7 @@ export function NewsList({
                   <p className="muted">{[n.source, ago(n.publishedAt, now), topics].filter(Boolean).join(' · ')}</p>
                 </div>
                 <div className="pills">
-                  {n.tags.includes('Carteira') && <span className="pill ac">sua carteira</span>}
+                  {n.tags.includes('Seus ativos') && <span className="pill ac">seus ativos</span>}
                   <span className={`pill ${toneClass[n.tone]}`} title={n.reason}>
                     {toneText[n.tone]}
                   </span>

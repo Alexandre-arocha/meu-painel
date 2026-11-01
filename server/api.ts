@@ -1,3 +1,4 @@
+import { FEEDS, isFeedId } from '../src/data/feeds.js'
 import { isSyncKey } from '../src/data/syncKeys.js'
 import { checkPassword, clearSessionCookie, sessionCookie, signSession, verifySession } from './session.js'
 
@@ -86,6 +87,29 @@ export async function handleNews(req: Request, d: Deps): Promise<Response> {
     })
   } catch {
     return json({ error: 'notícias indisponíveis' }, 502)
+  }
+}
+
+export async function handleFeed(req: Request, d: Deps): Promise<Response> {
+  if (!(await authorized(req, d))) return noSession()
+  return feedResponse(new URL(req.url).searchParams.get('src') ?? '', d.fetchFn ?? fetch)
+}
+
+// Sem checagem de sessão: o servidor de desenvolvimento do Vite também usa.
+export async function feedResponse(id: string, fetchFn: typeof fetch): Promise<Response> {
+  if (!isFeedId(id)) return json({ error: 'feed desconhecido' }, 404)
+  try {
+    const res = await fetchFn(FEEDS[id].url, {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; MeuPainel/1.0)' },
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!res.ok) return json({ error: `feed: ${res.status}` }, 502)
+    return new Response(await res.text(), {
+      status: 200,
+      headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'private, max-age=300' },
+    })
+  } catch {
+    return json({ error: 'feed indisponível' }, 502)
   }
 }
 

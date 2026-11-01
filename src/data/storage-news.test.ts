@@ -25,6 +25,12 @@ test('salva no máximo 50 notícias', () => {
   expect(loadNews()?.items).toHaveLength(50)
 })
 
+test('notícia salva com foto, língua e título original volta igual; foto insegura é descartada', () => {
+  const foreign = { ...item(1), image: 'https://img.test/a.jpg', lang: 'en', original: 'Original title' }
+  saveNews({ at: AT, items: [foreign, { ...item(2), image: 'javascript:alert(1)' }, { ...item(3), image: 'http://img.test/b.jpg' }] })
+  expect(loadNews()?.items).toEqual([foreign, item(2), item(3)])
+})
+
 test('notícias salvas corrompidas devolvem null e itens sem título são descartados', () => {
   localStorage.setItem('painel:v1:lastNews', '{{')
   expect(loadNews()).toBeNull()
