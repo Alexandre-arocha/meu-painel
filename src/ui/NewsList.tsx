@@ -1,4 +1,5 @@
 import { safeLink, type NewsItem } from '../data/news'
+import { langName } from '../data/translate'
 import { ago } from './format'
 
 const toneText = { positive: 'tom positivo', neutral: 'neutro', negative: 'tom negativo' } as const
@@ -25,10 +26,12 @@ export function NewsList({
           {items.slice(0, 20).map((n) => {
             const href = safeLink(n.link)
             const topics = n.tags.filter((t) => t !== 'Seus ativos').join(' · ')
+            const foreign = !!n.lang && n.lang !== 'pt'
+            const language = n.original ? `traduzido do ${langName(n.lang!)}` : foreign ? `em ${langName(n.lang!)}` : ''
             return (
               <li key={n.id}>
                 <div>
-                  <p className="headline">
+                  <p className="headline" lang={foreign && !n.original ? n.lang : undefined}>
                     {href ? (
                       <a href={href} target="_blank" rel="noopener noreferrer" title="Abre em nova aba">
                         {n.title}
@@ -37,7 +40,7 @@ export function NewsList({
                       n.title
                     )}
                   </p>
-                  <p className="muted">{[n.source, ago(n.publishedAt, now), topics].filter(Boolean).join(' · ')}</p>
+                  <p className="muted">{[n.source, language, ago(n.publishedAt, now), topics].filter(Boolean).join(' · ')}</p>
                 </div>
                 <div className="pills">
                   {n.tags.includes('Seus ativos') && <span className="pill ac">seus ativos</span>}

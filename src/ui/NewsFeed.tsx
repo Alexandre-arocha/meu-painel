@@ -1,16 +1,34 @@
 import { useEffect, useState } from 'react'
 import { markPortfolio, type NewsItem, type NewsSource } from '../data/news'
-import { loadNews, saveNews } from '../data/storage'
+import { loadNews, loadTranslations, saveNews, saveTranslations } from '../data/storage'
+import { createTranslator, translateNews, type Translator } from '../data/translate'
+import { lexiconClassifier } from '../domain/tone'
 import { dayTime, hhmm } from './format'
 import { NewsList } from './NewsList'
 
 const TOPICS = ['Tudo', 'Mercado', 'Mundo', 'Política', 'Tecnologia', 'Seus ativos']
+const PAGE = 20
+const serverTranslator = createTranslator()
 
 type Status = { kind: 'loading' } | { kind: 'fresh'; at: string } | { kind: 'saved'; at: string } | { kind: 'failed' }
-type Props = { news: NewsSource; now?: () => Date; store?: Storage; limit?: number; title?: string }
+export type NewsFeedProps = {
+  news: NewsSource
+  now?: () => Date
+  store?: Storage
+  limit?: number
+  title?: string
+  translate?: Translator
+}
 
 // Feed com temas, Atualizar e as notícias salvas quando a busca falha. Usado na aba Notícias e no Início.
-export function NewsFeed({ news, now = () => new Date(), store = localStorage, limit, title = 'Feed de notícias' }: Props) {
+export function NewsFeed({
+  news,
+  now = () => new Date(),
+  store = localStorage,
+  limit,
+  title = 'Feed de notícias',
+  translate = serverTranslator,
+}: NewsFeedProps) {
   const [items, setItems] = useState<NewsItem[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
   const [topic, setTopic] = useState('Tudo')
@@ -48,7 +66,26 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
   }, [news, store, round])
 
   const shown = topic === 'Tudo' ? items : items.filter((i) => i.tags.includes(topic))
+  const visible = shown.slice(0, limit ?? PAGE)
   const loading = status.kind === 'loading'
+
+  // Só as manchetes estrangeiras que estão na tela vão ao tradutor, para caber na cota grátis do DeepL.
+  const pending = visible.filter((i) => i.lang && i.lang !== 'pt' && !i.original)
+  const pendingKey = pending.map((i) => i.id).join('\n')
+  // As dependências são só a chave: o mesmo conjunto de manchetes não pede tradução de novo a cada render.
+  useEffect(() => {
+    if (!pendingKey) return
+    let alive = true
+    translateNews(pending, translate, loadTranslations(store), lexiconClassifier).then((r) => {
+      if (!alive) return
+      saveTranslations(r.cache, store)
+      const done = new Map(r.items.filter((i) => i.original).map((i) => [i.id, i]))
+      if (done.size > 0) setItems((all) => all.map((i) => done.get(i.id) ?? i))
+    })
+    return () => {
+      alive = false
+    }
+  }, [pendingKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -79,7 +116,7 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
       </p>
       <div className="grid">
         <NewsList
-          items={limit ? shown.slice(0, limit) : shown}
+          items={visible}
           now={now()}
           title={title}
           empty={topic === 'Tudo' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}

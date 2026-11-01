@@ -2,7 +2,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NewsPage } from './NewsPage'
 import type { NewsItem } from '../data/news'
-import { saveNews } from '../data/storage'
+import { loadTranslations, saveNews } from '../data/storage'
+import type { Translator } from '../data/translate'
 
 beforeEach(() => localStorage.clear())
 
@@ -82,6 +83,25 @@ test('sem conexão mostra as notícias salvas com aviso', async () => {
   render(<NewsPage news={news} />)
   expect(await screen.findByText('Notícia salva')).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent(/notícias salvas/)
+})
+
+test('notícia estrangeira aparece traduzida, com a fonte e a língua de origem', async () => {
+  const translate: Translator = async (texts) => texts.map(() => 'Mercados sobem no mundo')
+  const news = { fetchNews: async () => [{ ...item('Markets rally worldwide', 'Mundo'), source: 'BBC', lang: 'en' }] }
+  render(<NewsPage news={news} translate={translate} />)
+  expect(await screen.findByText('Mercados sobem no mundo')).toBeInTheDocument()
+  expect(screen.getByText(/BBC · traduzido do inglês/)).toBeInTheDocument()
+  expect(loadTranslations()).toEqual({ 'Markets rally worldwide': 'Mercados sobem no mundo' })
+})
+
+test('sem tradução, a notícia estrangeira aparece no original com a língua', async () => {
+  const translate: Translator = async () => {
+    throw new Error('sem chave')
+  }
+  const news = { fetchNews: async () => [{ ...item('Markets rally worldwide', 'Mundo'), lang: 'en' }] }
+  render(<NewsPage news={news} translate={translate} />)
+  expect(await screen.findByText('Markets rally worldwide')).toBeInTheDocument()
+  expect(await screen.findByText(/em inglês/)).toBeInTheDocument()
 })
 
 test('falha ao buscar mostra mensagem', async () => {

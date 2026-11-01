@@ -1,5 +1,16 @@
 // @vitest-environment node
-import { handleBrapi, handleData, handleFeed, handleLogin, handleLogout, handleNews, handleSession, type Deps, type Kv } from './api.js'
+import {
+  handleBrapi,
+  handleData,
+  handleFeed,
+  handleLogin,
+  handleLogout,
+  handleNews,
+  handleSession,
+  handleTranslate,
+  type Deps,
+  type Kv,
+} from './api.js'
 import { SESSION_COOKIE, signSession } from './session.js'
 
 const SECRET = 'senha-de-teste' // valor de teste
@@ -121,6 +132,64 @@ test('feed exige sessão, aceita só ids da lista e devolve o RSS', async () => 
 test('feed fora do ar vira 502', async () => {
   const fetchFn = (async () => new Response('x', { status: 503 })) as unknown as typeof fetch
   expect((await handleFeed(await withSession('https://x/api/news/feed?src=g1-economia'), deps({ fetchFn }))).status).toBe(502)
+})
+
+const translateReq = async (body: unknown, session = true) => {
+  const init = { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) }
+  return session ? withSession('https://x/api/translate', init) : new Request('https://x/api/translate', init)
+}
+const deepl = (over: Partial<Deps['env']> = {}) => ({ env: { APP_PASSWORD: SECRET, DEEPL_API_KEY: 'chave-de-teste:fx', ...over } })
+
+test('tradução usa o DeepL Free com a chave do servidor e devolve na mesma ordem', async () => {
+  const calls: { url: string; auth: string | null; body: unknown }[] = []
+  const fetchFn = (async (url: string, init?: RequestInit) => {
+    calls.push({ url: String(url), auth: new Headers(init?.headers).get('authorization'), body: JSON.parse(String(init?.body)) })
+    return new Response(JSON.stringify({ translations: [{ text: 'Olá' }, { text: 'Mundo' }] }), { status: 200 })
+  }) as unknown as typeof fetch
+  const res = await handleTranslate(await translateReq({ texts: ['Hello', 'World'], source: 'en' }), deps({ ...deepl(), fetchFn }))
+  expect(res.status).toBe(200)
+  expect(await res.json()).toEqual({ translations: ['Olá', 'Mundo'] })
+  expect(calls).toEqual([
+    {
+      url: 'https://api-free.deepl.com/v2/translate',
+      auth: 'DeepL-Auth-Key chave-de-teste:fx',
+      body: { text: ['Hello', 'World'], target_lang: 'PT-BR', source_lang: 'EN' },
+    },
+  ])
+})
+
+test('chave paga do DeepL usa o servidor pago', async () => {
+  const urls: string[] = []
+  const fetchFn = (async (url: string) => {
+    urls.push(String(url))
+    return new Response(JSON.stringify({ translations: [{ text: 'Oi' }] }), { status: 200 })
+  }) as unknown as typeof fetch
+  await handleTranslate(await translateReq({ texts: ['Hi'] }), deps({ ...deepl({ DEEPL_API_KEY: 'chave-paga' }), fetchFn }))
+  expect(urls).toEqual(['https://api.deepl.com/v2/translate'])
+})
+
+test('tradução recusa sem sessão, pedido inválido e falta de chave', async () => {
+  const fetchFn = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch
+  const run = async (body: unknown, over: Partial<Deps> = {}, session = true) =>
+    (await handleTranslate(await translateReq(body, session), deps({ ...deepl(), fetchFn, ...over }))).status
+  expect(await run({ texts: ['a'] }, {}, false)).toBe(401)
+  expect(await run('{{')).toBe(400)
+  expect(await run({ texts: 'a' })).toBe(400)
+  expect(await run({ texts: [] })).toBe(400)
+  expect(await run({ texts: Array.from({ length: 51 }, () => 'a') })).toBe(400)
+  expect(await run({ texts: ['a'.repeat(501)] })).toBe(400)
+  expect(await run({ texts: ['a'], source: 'inglês' })).toBe(400)
+  expect(await run({ texts: ['a'] }, { env: { APP_PASSWORD: SECRET } })).toBe(503)
+})
+
+test('cota do DeepL acabada e chave inválida viram mensagens claras', async () => {
+  const answer = (status: number) => (async () => new Response('{}', { status })) as unknown as typeof fetch
+  const quota = await handleTranslate(await translateReq({ texts: ['a'] }), deps({ ...deepl(), fetchFn: answer(456) }))
+  expect(quota.status).toBe(429)
+  expect(await quota.json()).toEqual({ error: 'a cota do mês do DeepL acabou' })
+  const key = await handleTranslate(await translateReq({ texts: ['a'] }), deps({ ...deepl(), fetchFn: answer(403) }))
+  expect(key.status).toBe(502)
+  expect(await key.json()).toEqual({ error: 'chave do DeepL inválida' })
 })
 
 test('brapi sem BRAPI_TOKEN devolve 503', async () => {

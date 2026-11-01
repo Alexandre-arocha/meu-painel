@@ -1,4 +1,4 @@
-import { loadNews, saveNews } from './storage'
+import { loadNews, loadTranslations, saveNews, saveTranslations } from './storage'
 import type { NewsItem } from './news'
 
 beforeEach(() => localStorage.clear())
@@ -29,6 +29,19 @@ test('notícia salva com foto, língua e título original volta igual; foto inse
   const foreign = { ...item(1), image: 'https://img.test/a.jpg', lang: 'en', original: 'Original title' }
   saveNews({ at: AT, items: [foreign, { ...item(2), image: 'javascript:alert(1)' }, { ...item(3), image: 'http://img.test/b.jpg' }] })
   expect(loadNews()?.items).toEqual([foreign, item(2), item(3)])
+})
+
+test('traduções guardadas: até 1000, saindo as mais antigas; lixo vira vazio', () => {
+  const many = Object.fromEntries(Array.from({ length: 1005 }, (_, i) => [`t${i}`, `p${i}`]))
+  saveTranslations(many)
+  const back = loadTranslations()
+  expect(Object.keys(back)).toHaveLength(1000)
+  expect(back.t1004).toBe('p1004')
+  expect(back.t0).toBeUndefined()
+  localStorage.setItem('painel:v1:translations', JSON.stringify({ a: 'b', c: 3 }))
+  expect(loadTranslations()).toEqual({ a: 'b' })
+  localStorage.setItem('painel:v1:translations', '[1]')
+  expect(loadTranslations()).toEqual({})
 })
 
 test('notícias salvas corrompidas devolvem null e itens sem título são descartados', () => {

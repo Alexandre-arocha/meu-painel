@@ -148,6 +148,20 @@ export function saveRoutine(routine: Routine, store: Storage = localStorage): bo
   return write(store, ROUTINE_KEY, routine)
 }
 
+const TRANSLATIONS_KEY = 'painel:v1:translations'
+const MAX_TRANSLATIONS = 1000
+
+// Traduções das manchetes: só neste aparelho. Passando de 1000, saem as mais antigas (as primeiras gravadas).
+export function loadTranslations(store: Storage = localStorage): Record<string, string> {
+  const d = readJson(store, TRANSLATIONS_KEY)
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return {}
+  return Object.fromEntries(Object.entries(d).filter(([, v]) => typeof v === 'string'))
+}
+
+export function saveTranslations(map: Record<string, string>, store: Storage = localStorage): boolean {
+  return write(store, TRANSLATIONS_KEY, Object.fromEntries(Object.entries(map).slice(-MAX_TRANSLATIONS)))
+}
+
 const NEWS_KEY = 'painel:v1:lastNews'
 const MAX_NEWS = 50
 const TONES = ['positive', 'neutral', 'negative']

@@ -2,7 +2,7 @@ import { FEEDS, isFeedId } from '../src/data/feeds.js'
 import { isSyncKey } from '../src/data/syncKeys.js'
 import { checkPassword, clearSessionCookie, sessionCookie, signSession, verifySession } from './session.js'
 
-export type Env = { APP_PASSWORD?: string; BRAPI_TOKEN?: string; DATABASE_URL?: string }
+export type Env = { APP_PASSWORD?: string; BRAPI_TOKEN?: string; DATABASE_URL?: string; DEEPL_API_KEY?: string }
 export type Kv = { all(): Promise<Record<string, unknown>>; put(key: string, value: unknown): Promise<void> }
 export type Deps = {
   env: Env
@@ -110,6 +110,52 @@ export async function feedResponse(id: string, fetchFn: typeof fetch): Promise<R
     })
   } catch {
     return json({ error: 'feed indisponível' }, 502)
+  }
+}
+
+const MAX_TEXTS = 50 // limite do DeepL por pedido
+const MAX_CHARS = 500
+
+export async function handleTranslate(req: Request, d: Deps): Promise<Response> {
+  if (!(await authorized(req, d))) return noSession()
+  return translateResponse(req, d.env.DEEPL_API_KEY, d.fetchFn ?? fetch)
+}
+
+// Sem checagem de sessão: o servidor de desenvolvimento do Vite também usa.
+export async function translateResponse(req: Request, key: string | undefined, fetchFn: typeof fetch): Promise<Response> {
+  let body: { texts?: unknown; source?: unknown } | null
+  try {
+    body = (await req.json()) as typeof body
+  } catch {
+    return json({ error: 'corpo inválido' }, 400)
+  }
+  const texts = body?.texts
+  const valid = (t: unknown) => typeof t === 'string' && t.length > 0 && t.length <= MAX_CHARS
+  if (!Array.isArray(texts) || texts.length === 0 || texts.length > MAX_TEXTS || !texts.every(valid)) {
+    return json({ error: 'textos inválidos' }, 400)
+  }
+  const source = body?.source === undefined ? undefined : String(body.source).toUpperCase()
+  if (source !== undefined && !/^[A-Z]{2}$/.test(source)) return json({ error: 'língua inválida' }, 400)
+  if (!key) return json({ error: 'DEEPL_API_KEY não configurada' }, 503)
+  // Chaves do plano grátis terminam em ":fx" e só valem no servidor grátis do DeepL.
+  const host = key.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com'
+  try {
+    const res = await fetchFn(`${host}/v2/translate`, {
+      method: 'POST',
+      headers: { authorization: `DeepL-Auth-Key ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: texts, target_lang: 'PT-BR', ...(source && { source_lang: source }) }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (res.status === 456) return json({ error: 'a cota do mês do DeepL acabou' }, 429)
+    if (res.status === 403) return json({ error: 'chave do DeepL inválida' }, 502)
+    if (!res.ok) return json({ error: `DeepL: ${res.status}` }, 502)
+    const out = ((await res.json()) as { translations?: { text?: unknown }[] }).translations?.map((t) => t.text)
+    if (!out || out.length !== texts.length || !out.every((t) => typeof t === 'string')) {
+      return json({ error: 'resposta inesperada do DeepL' }, 502)
+    }
+    return json({ translations: out })
+  } catch {
+    return json({ error: 'DeepL indisponível' }, 502)
   }
 }
 

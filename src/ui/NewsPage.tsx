@@ -1,9 +1,6 @@
-import type { NewsSource } from '../data/news'
-import { NewsFeed } from './NewsFeed'
+import { NewsFeed, type NewsFeedProps } from './NewsFeed'
 
-type Props = { news: NewsSource; now?: () => Date; store?: Storage }
-
-export function NewsPage(props: Props) {
+export function NewsPage(props: Omit<NewsFeedProps, 'limit' | 'title'>) {
   return (
     <div className="page">
       <NewsFeed {...props} />
