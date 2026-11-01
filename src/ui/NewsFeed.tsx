@@ -18,6 +18,7 @@ export type NewsFeedProps = {
   limit?: number
   title?: string
   translate?: Translator
+  layout?: 'list' | 'cards'
 }
 
 // Feed com temas, Atualizar e as notícias salvas quando a busca falha. Usado na aba Notícias e no Início.
@@ -28,10 +29,12 @@ export function NewsFeed({
   limit,
   title = 'Feed de notícias',
   translate = serverTranslator,
+  layout = 'list',
 }: NewsFeedProps) {
   const [items, setItems] = useState<NewsItem[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
   const [topic, setTopic] = useState('Tudo')
+  const [count, setCount] = useState(PAGE)
   const [round, setRound] = useState(0)
 
   // `now` fica fora das dependências: é só o relógio, e a função padrão muda a cada render.
@@ -66,7 +69,7 @@ export function NewsFeed({
   }, [news, store, round])
 
   const shown = topic === 'Tudo' ? items : items.filter((i) => i.tags.includes(topic))
-  const visible = shown.slice(0, limit ?? PAGE)
+  const visible = shown.slice(0, limit ?? count)
   const loading = status.kind === 'loading'
 
   // Só as manchetes estrangeiras que estão na tela vão ao tradutor, para caber na cota grátis do DeepL.
@@ -76,9 +79,10 @@ export function NewsFeed({
   useEffect(() => {
     if (!pendingKey) return
     let alive = true
-    translateNews(pending, translate, loadTranslations(store), lexiconClassifier).then((r) => {
+    const cache = loadTranslations(store)
+    translateNews(pending, translate, cache, lexiconClassifier).then((r) => {
       if (!alive) return
-      saveTranslations(r.cache, store)
+      if (Object.keys(r.cache).length > Object.keys(cache).length) saveTranslations(r.cache, store)
       const done = new Map(r.items.filter((i) => i.original).map((i) => [i.id, i]))
       if (done.size > 0) setItems((all) => all.map((i) => done.get(i.id) ?? i))
     })
@@ -102,7 +106,16 @@ export function NewsFeed({
       <div className="toolbar">
         <div className="chips" role="group" aria-label="Temas">
           {TOPICS.map((t) => (
-            <button key={t} type="button" className="chip" aria-pressed={topic === t} onClick={() => setTopic(t)}>
+            <button
+              key={t}
+              type="button"
+              className="chip"
+              aria-pressed={topic === t}
+              onClick={() => {
+                setTopic(t)
+                setCount(PAGE)
+              }}
+            >
               {t}
             </button>
           ))}
@@ -119,9 +132,15 @@ export function NewsFeed({
           items={visible}
           now={now()}
           title={title}
+          cards={layout === 'cards'}
           empty={topic === 'Tudo' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
         />
       </div>
+      {!limit && shown.length > count && (
+        <button type="button" className="ghost show-more" onClick={() => setCount((c) => c + PAGE)}>
+          Mostrar mais
+        </button>
+      )}
     </>
   )
 }

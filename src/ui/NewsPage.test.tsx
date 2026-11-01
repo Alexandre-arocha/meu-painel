@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NewsPage } from './NewsPage'
 import type { NewsItem } from '../data/news'
@@ -102,6 +102,31 @@ test('sem tradução, a notícia estrangeira aparece no original com a língua',
   render(<NewsPage news={news} translate={translate} />)
   expect(await screen.findByText('Markets rally worldwide')).toBeInTheDocument()
   expect(await screen.findByText(/em inglês/)).toBeInTheDocument()
+})
+
+test('notícia com foto mostra a imagem decorativa, que some se não carregar', async () => {
+  const news = { fetchNews: async () => [{ ...item('Com foto', 'Mundo'), image: 'https://img.test/a.jpg' }] }
+  const { container } = render(<NewsPage news={news} />)
+  await screen.findByText('Com foto')
+  const img = container.querySelector('img') as HTMLImageElement
+  expect(img).toHaveAttribute('src', 'https://img.test/a.jpg')
+  expect(img).toHaveAttribute('alt', '')
+  expect(img).toHaveAttribute('loading', 'lazy')
+  expect(img).toHaveAttribute('referrerpolicy', 'no-referrer')
+  fireEvent.error(img)
+  expect(container.querySelector('img')).toBeNull()
+})
+
+test('a página Notícias mostra cartões, 20 por vez, e Mostrar mais traz o resto', async () => {
+  const user = userEvent.setup()
+  const many = Array.from({ length: 25 }, (_, i) => item(`Notícia ${i}`, 'Mundo'))
+  const { container } = render(<NewsPage news={{ fetchNews: async () => many }} />)
+  await screen.findByText('Notícia 0')
+  expect(container.querySelector('.news.cards')).not.toBeNull()
+  expect(container.querySelectorAll('.news li')).toHaveLength(20)
+  await user.click(screen.getByRole('button', { name: 'Mostrar mais' }))
+  expect(container.querySelectorAll('.news li')).toHaveLength(25)
+  expect(screen.queryByRole('button', { name: 'Mostrar mais' })).toBeNull()
 })
 
 test('falha ao buscar mostra mensagem', async () => {
