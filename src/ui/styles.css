@@ -74,7 +74,7 @@ h1, h2, p { margin: 0; }
 .pill { display: inline-block; padding: 3px 10px; border-radius: 99px; background: color-mix(in srgb, currentColor 14%, transparent); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
 .pill.warn { color: var(--warn); }
 .pill.ac { color: var(--ac); }
-.pills { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .signal { margin-top: 8px; }
 .notice { margin-top: 24px; text-align: center; color: var(--mut); font-size: 0.8125rem; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -125,21 +125,20 @@ input[aria-invalid='true'] { border-color: var(--dn); }
 .list li:first-child { border-top: 0; }
 .list li.item { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .news { list-style: none; margin: 4px 0 0; padding: 0; }
-.news li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 0; border-top: 1px solid var(--bd); }
+.news li { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-top: 1px solid var(--bd); }
 .news li:first-child { border-top: 0; }
+.news-text { display: grid; flex: 1; align-content: start; gap: 4px; min-width: 0; }
+.pills .pill { align-self: center; }
+.thumb { flex: none; width: 96px; aspect-ratio: 4 / 3; border-radius: 10px; background: var(--card2); object-fit: cover; }
+.news.cards { display: grid; gap: 24px 20px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+.news.cards li { flex-direction: column-reverse; gap: 12px; padding: 0; border-top: 0; }
+.news.cards .thumb { width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; }
+.show-more { display: block; margin: var(--gap) auto 0; }
 .headline { font-weight: 500; line-height: 1.4; }
 .headline a { color: var(--tx); text-decoration: none; }
+/* O link do título cobre o item inteiro: tocar na foto ou no texto abre a matéria (alvo grande no celular). */
+.headline a::after { content: ''; position: absolute; inset: 0; }
 .headline a:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-.statement { margin: 6px 0 12px; font-size: 1.0625rem; line-height: 1.45; }
-.opt { display: block; width: 100%; margin: 8px 0; padding: 12px 16px; border: 1px solid transparent; border-radius: 14px; background: var(--card); color: var(--tx); font-weight: 400; text-align: left; }
-.card .opt { background: var(--card2); }
-.opt:hover:not(:disabled) { background: var(--card2); }
-.card .opt:hover:not(:disabled) { background: var(--thumb); }
-.opt:disabled { cursor: default; }
-.opt.ok { border-color: var(--up); background: color-mix(in srgb, var(--up) 16%, transparent); }
-.opt.bad { border-color: var(--dn); background: color-mix(in srgb, var(--dn) 16%, transparent); }
-.feedback { display: grid; justify-items: start; gap: 8px; margin-top: 12px; }
 
 .days { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 14px 0; padding: 0; border: 0; }
 .days legend { margin-bottom: 6px; padding: 0; color: var(--mut); font-size: 0.875rem; }
@@ -175,7 +174,7 @@ input[aria-invalid='true'] { border-color: var(--dn); }
 .metrics { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 32px; }
 .metric { display: grid; gap: 2px; padding: 14px 16px; border-radius: var(--radius); background: var(--card); }
 .metric b { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; font-variant-numeric: normal; }
-.cols { display: grid; gap: 40px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.cols { display: grid; gap: 40px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
 .cols > section > h2 { margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--bd); color: var(--mut); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .cols > section > h2 ~ h2 { margin-top: 28px; }
 .cols .grid { display: block; }

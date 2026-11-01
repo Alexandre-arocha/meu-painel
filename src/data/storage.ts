@@ -1,7 +1,6 @@
 import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
 import type { Point, Quote } from './prices'
-import type { NewsItem } from './news'
-import { parseQuestions, type Attempt, type Question } from '../domain/study'
+import { safeImage, type NewsItem } from './news'
 import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
@@ -102,40 +101,14 @@ export function saveHistory(h: HistoryCache, store: Storage = localStorage): boo
   return write(store, HISTORY_KEY, h)
 }
 
-const ATTEMPTS_KEY = 'painel:v1:attempts'
-const QUESTIONS_KEY = 'painel:v1:questions'
-
-export function loadAttempts(store: Storage = localStorage): Attempt[] {
-  const data = readJson(store, ATTEMPTS_KEY)
-  if (!Array.isArray(data)) return []
-  return data.filter(
-    (a): a is Attempt =>
-      !!a && typeof a.questionId === 'string' && typeof a.correct === 'boolean' && typeof a.at === 'string',
-  )
-}
-
-export function saveAttempts(attempts: Attempt[], store: Storage = localStorage): boolean {
-  return write(store, ATTEMPTS_KEY, attempts)
-}
-
-export function loadCustomQuestions(store: Storage = localStorage): Question[] {
-  const data = readJson(store, QUESTIONS_KEY)
-  if (!Array.isArray(data)) return []
-  const r = parseQuestions(JSON.stringify(data))
-  return r.ok ? r.questions : []
-}
-
-export function saveCustomQuestions(questions: Question[], store: Storage = localStorage): boolean {
-  return write(store, QUESTIONS_KEY, questions)
-}
-
 const EVENTS_KEY = 'painel:v1:events'
 const ROUTINE_KEY = 'painel:v1:routine'
 
 export function loadEvents(store: Storage = localStorage): AgendaEvent[] {
   const data = readJson(store, EVENTS_KEY)
   if (!Array.isArray(data)) return []
-  return data.filter(
+  // O tipo "estudo" saiu do app; compromissos antigos desse tipo continuam como pessoais.
+  return data.map((e) => (e?.kind === 'estudo' ? { ...e, kind: 'pessoal' } : e)).filter(
     (e): e is AgendaEvent =>
       !!e &&
       typeof e.id === 'string' &&
@@ -166,16 +139,27 @@ export function loadRoutine(store: Storage = localStorage): Routine {
     typeof r.workEnd === 'string' &&
     isTime(r.workEnd) &&
     Array.isArray(r.workDays) &&
-    r.workDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) &&
-    Number.isInteger(r.studyMinutes) &&
-    (r.studyMinutes as number) >= 0 &&
-    (r.studyMinutes as number) <= 600
+    r.workDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
   if (!valid) return { ...DEFAULT_ROUTINE, workDays: [...DEFAULT_ROUTINE.workDays] }
-  return { workStart: r.workStart!, workEnd: r.workEnd!, workDays: r.workDays!, studyMinutes: r.studyMinutes! }
+  return { workStart: r.workStart!, workEnd: r.workEnd!, workDays: r.workDays! }
 }
 
 export function saveRoutine(routine: Routine, store: Storage = localStorage): boolean {
   return write(store, ROUTINE_KEY, routine)
+}
+
+const TRANSLATIONS_KEY = 'painel:v1:translations'
+const MAX_TRANSLATIONS = 1000
+
+// Traduções das manchetes: só neste aparelho. Passando de 1000, saem as mais antigas (as primeiras gravadas).
+export function loadTranslations(store: Storage = localStorage): Record<string, string> {
+  const d = readJson(store, TRANSLATIONS_KEY)
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return {}
+  return Object.fromEntries(Object.entries(d).filter(([, v]) => typeof v === 'string'))
+}
+
+export function saveTranslations(map: Record<string, string>, store: Storage = localStorage): boolean {
+  return write(store, TRANSLATIONS_KEY, Object.fromEntries(Object.entries(map).slice(-MAX_TRANSLATIONS)))
 }
 
 const NEWS_KEY = 'painel:v1:lastNews'
@@ -191,19 +175,26 @@ export function saveNews(cache: NewsCache, store: Storage = localStorage): boole
 export function loadNews(store: Storage = localStorage): NewsCache | null {
   const d = readJson(store, NEWS_KEY) as Partial<NewsCache> | null
   if (!d || typeof d.at !== 'string' || !Array.isArray(d.items)) return null
-  const items = d.items.filter(
-    (i): i is NewsItem =>
-      !!i &&
-      typeof i.id === 'string' &&
-      typeof i.title === 'string' &&
-      i.title.trim() !== '' &&
-      (i.link === null || typeof i.link === 'string') &&
-      typeof i.source === 'string' &&
-      (i.publishedAt === null || typeof i.publishedAt === 'string') &&
-      Array.isArray(i.tags) &&
-      i.tags.every((t) => typeof t === 'string') &&
-      TONES.includes(i.tone) &&
-      typeof i.reason === 'string',
-  )
+  const items = d.items
+    .filter(
+      (i): i is NewsItem =>
+        !!i &&
+        typeof i.id === 'string' &&
+        typeof i.title === 'string' &&
+        i.title.trim() !== '' &&
+        (i.link === null || typeof i.link === 'string') &&
+        typeof i.source === 'string' &&
+        (i.publishedAt === null || typeof i.publishedAt === 'string') &&
+        Array.isArray(i.tags) &&
+        i.tags.every((t) => typeof t === 'string') &&
+        TONES.includes(i.tone) &&
+        typeof i.reason === 'string' &&
+        (i.lang === undefined || typeof i.lang === 'string') &&
+        (i.original === undefined || typeof i.original === 'string'),
+    )
+    .map(({ image, ...rest }) => {
+      const safe = safeImage(image)
+      return safe ? { ...rest, image: safe } : rest
+    })
   return { at: d.at, items }
 }

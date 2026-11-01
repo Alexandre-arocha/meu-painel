@@ -1,6 +1,6 @@
 import {
-  GENERAL_QUERIES,
   createGoogleNewsSource,
+  createNewsSource,
   dedupe,
   markPortfolio,
   parseRss,
@@ -8,6 +8,7 @@ import {
   sortNews,
   type NewsItem,
 } from './news'
+import { FEED_IDS, FEEDS } from './feeds'
 import { lexiconClassifier } from '../domain/tone'
 
 const xml = `<?xml version="1.0"?><rss><channel>
@@ -80,26 +81,87 @@ test('parseRss guarda o link seguro de cada item', () => {
   expect(parseRss(xml, 'BBAS3')[0].link).toBe('http://a/1')
 })
 
-test('markPortfolio marca notícias que citam BB, BBAS3, B3 ou B3SA3', () => {
+test('markPortfolio marca com "Seus ativos" as notícias que citam BB, BBAS3, B3 ou B3SA3', () => {
   const out = markPortfolio([
     { ...item('Banco do Brasil anuncia dividendos', null), tags: ['Mercado'] },
     item('Ibovespa sobe', null),
     item('B3 tem recorde de investidores', null),
-    { ...item('BBAS3 em alta', null), tags: ['Carteira'] },
+    { ...item('BBAS3 em alta', null), tags: ['Seus ativos'] },
   ])
-  expect(out.map((i) => i.tags)).toEqual([['Mercado', 'Carteira'], [], ['Carteira'], ['Carteira']])
+  expect(out.map((i) => i.tags)).toEqual([['Mercado', 'Seus ativos'], [], ['Seus ativos'], ['Seus ativos']])
 })
 
-test('fonte geral busca mercado, concursos e tecnologia', async () => {
+test('parseRss acha a foto em media:content (a maior), media:thumbnail, enclosure ou img do texto, só em https', () => {
+  const rss = `<?xml version="1.0"?><rss xmlns:media="http://search.yahoo.com/mrss/"><channel>
+  <item><title>A</title><media:content url="https://img.test/p.jpg" medium="image" width="240"/><media:content url="https://img.test/g.jpg" medium="image" width="1024"/></item>
+  <item><title>B</title><media:thumbnail url="https://img.test/t.jpg" width="240"/></item>
+  <item><title>C</title><enclosure url="https://img.test/e.jpg" type="image/jpeg" length="1"/></item>
+  <item><title>D</title><description><![CDATA[<p><img src="https://img.test/d.jpg" alt=""/> texto</p>]]></description></item>
+  <item><title>E</title><media:content url="http://img.test/inseguro.jpg" medium="image"/></item>
+  <item><title>F</title><enclosure url="javascript:alert(1)" type="image/png"/></item>
+  <item><title>G</title><enclosure url="https://cdn.test/audio.mp3" type="audio/mpeg"/></item>
+  </channel></rss>`
+  expect(parseRss(rss, 'Mundo').map((i) => i.image)).toEqual([
+    'https://img.test/g.jpg',
+    'https://img.test/t.jpg',
+    'https://img.test/e.jpg',
+    'https://img.test/d.jpg',
+    undefined,
+    undefined,
+    undefined,
+  ])
+})
+
+test('parseRss lê feeds Atom e usa a fonte e a língua do feed', () => {
+  const atom = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">
+  <entry><title>New chip</title><link rel="alternate" type="text/html" href="https://verge.test/a"/><id>tag:1</id>
+  <published>2026-10-30T12:00:00-04:00</published><content type="html">&lt;img src="https://img.test/v.jpg"&gt;&lt;p&gt;texto&lt;/p&gt;</content></entry>
+  </feed>`
+  expect(parseRss(atom, 'Tecnologia', { source: 'The Verge', lang: 'en' })).toEqual([
+    {
+      id: 'tag:1',
+      title: 'New chip',
+      link: 'https://verge.test/a',
+      source: 'The Verge',
+      publishedAt: '2026-10-30T16:00:00.000Z',
+      tags: ['Tecnologia'],
+      image: 'https://img.test/v.jpg',
+      lang: 'en',
+    },
+  ])
+})
+
+const rssWith = (title: string) =>
+  `<?xml version="1.0"?><rss><channel><item><title>${title}</title><link>https://n.test/${encodeURIComponent(title)}</link><pubDate>Wed, 28 Oct 2026 13:00:00 GMT</pubDate></item></channel></rss>`
+
+test('fonte geral junta os feeds da lista e as buscas dos seus ativos', async () => {
   const urls: string[] = []
   const f = (async (url: string) => {
     urls.push(String(url))
-    return okFetch(url)
+    const src = new URL(String(url), 'http://x').searchParams.get('src') ?? 'google'
+    return { ok: true, status: 200, text: async () => rssWith(`Notícia ${src}`) }
   }) as unknown as typeof fetch
-  await createGoogleNewsSource(f, lexiconClassifier, '/news-proxy', GENERAL_QUERIES).fetchNews()
-  expect(urls).toHaveLength(GENERAL_QUERIES.length)
-  expect(urls.some((u) => u.includes('concurso'))).toBe(true)
-  expect(new Set(GENERAL_QUERIES.map((q) => q.tag))).toEqual(new Set(['Mercado', 'Concursos', 'Tecnologia']))
+  const items = await createNewsSource(f, lexiconClassifier, {
+    feeds: ['bbc-world', 'g1-politica'],
+    queries: [{ q: 'BBAS3', tag: 'Seus ativos' }],
+    googleBase: '/news-proxy',
+  }).fetchNews()
+  expect(urls).toEqual(['/api/news/feed?src=bbc-world', '/api/news/feed?src=g1-politica', '/news-proxy/search?q=BBAS3&hl=pt-BR&gl=BR&ceid=BR:pt-419'])
+  expect(items.map((i) => [i.title, i.tags, i.source, i.lang])).toEqual(
+    expect.arrayContaining([
+      ['Notícia bbc-world', ['Mundo'], 'BBC', 'en'],
+      ['Notícia g1-politica', ['Política'], 'g1', 'pt'],
+      ['Notícia google', ['Seus ativos'], '', undefined],
+    ]),
+  )
+})
+
+test('a lista de feeds só tem endereços https e temas conhecidos', () => {
+  expect(FEED_IDS.length).toBeGreaterThanOrEqual(15)
+  for (const id of FEED_IDS) {
+    expect(FEEDS[id].url).toMatch(/^https:\/\//)
+    expect(['Mercado', 'Mundo', 'Política', 'Tecnologia']).toContain(FEEDS[id].tag)
+  }
 })
 
 test('fonte de notícias segue com os termos que deram certo quando um falha', async () => {

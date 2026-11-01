@@ -18,12 +18,10 @@ import { localDate } from './format'
 
 const KINDS: { id: EventKind; label: string }[] = [
   { id: 'pessoal', label: 'Pessoal' },
-  { id: 'estudo', label: 'Estudo' },
-  { id: 'prova', label: 'Prova / concurso' },
+  { id: 'prova', label: 'Prova' },
   { id: 'mercado', label: 'Mercado' },
 ]
 const LEGEND = [
-  { kind: 'estudo', label: 'Estudo' },
   { kind: 'mercado', label: 'Mercado' },
   { kind: 'trabalho', label: 'Trabalho' },
   { kind: 'pessoal', label: 'Pessoal e provas' },
@@ -47,7 +45,7 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
   const [view, setView] = useState(() => monthOf(today))
   const [form, setForm] = useState<Form>({ title: '', date: today, time: '', duration: '60', kind: 'pessoal', repeat: [] })
   const [formError, setFormError] = useState('')
-  const [draft, setDraft] = useState({ ...routine, studyMinutes: String(routine.studyMinutes) })
+  const [draft, setDraft] = useState(routine)
   const [routineMsg, setRoutineMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const plan = planDay(selected, routine, events)
@@ -100,12 +98,8 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
     if (!isTime(draft.workStart) || !isTime(draft.workEnd)) {
       return setRoutineMsg({ ok: false, text: 'horário de trabalho inválido' })
     }
-    if (!/^\d+$/.test(draft.studyMinutes) || Number(draft.studyMinutes) > 600) {
-      return setRoutineMsg({ ok: false, text: 'minutos de estudo entre 0 e 600' })
-    }
-    const next: Routine = { workStart: draft.workStart, workEnd: draft.workEnd, workDays: draft.workDays, studyMinutes: Number(draft.studyMinutes) }
-    setRoutine(next)
-    saveRoutine(next, store)
+    setRoutine(draft)
+    saveRoutine(draft, store)
     setRoutineMsg({ ok: true, text: 'Rotina salva.' })
   }
 
@@ -299,10 +293,6 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
                 </label>
               ))}
             </fieldset>
-            <div className="field">
-              <label htmlFor="r-min">Minutos de estudo por dia</label>
-              <input id="r-min" inputMode="numeric" value={draft.studyMinutes} onChange={(e) => setDraft({ ...draft, studyMinutes: e.target.value })} />
-            </div>
             {routineMsg && <p className={routineMsg.ok ? 'up' : 'err'}>{routineMsg.text}</p>}
             <button type="submit">Salvar rotina</button>
           </form>

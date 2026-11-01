@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createBrapiProvider, createProxyPriceProvider, type PriceProvider } from '../data/prices'
-import { GENERAL_QUERIES, createGoogleNewsSource, type NewsSource } from '../data/news'
+import { FEED_IDS } from '../data/feeds'
+import { PORTFOLIO_QUERIES, createGoogleNewsSource, createNewsSource, type NewsSource } from '../data/news'
 import { loadTheme, saveTheme, setWriteListener, type Theme } from '../data/storage'
 import { lexiconClassifier } from '../domain/tone'
 import { startSync } from '../sync'
@@ -9,7 +10,6 @@ import { HomePage } from './HomePage'
 import { InvestmentsPage } from './InvestmentsPage'
 import { LoginPage } from './LoginPage'
 import { NewsPage } from './NewsPage'
-import { StudyPage } from './StudyPage'
 
 type Props = {
   makePrices?: (token: string | undefined) => PriceProvider
@@ -19,22 +19,22 @@ type Props = {
   fetchFn?: typeof fetch
 }
 
-// Em desenvolvimento: brapi direto e notícias pelo proxy do Vite. Publicado: tudo pelas funções /api.
+// Em desenvolvimento: brapi direto, Google News pelo proxy do Vite e os feeds pelo plugin do Vite. Publicado: tudo pelas funções /api.
+const general = { feeds: FEED_IDS, queries: PORTFOLIO_QUERIES }
 const local = {
   makePrices: (token: string | undefined) => createBrapiProvider(token),
   news: createGoogleNewsSource(undefined, lexiconClassifier),
-  generalNews: createGoogleNewsSource(undefined, lexiconClassifier, '/news-proxy', GENERAL_QUERIES),
+  generalNews: createNewsSource(undefined, lexiconClassifier, general),
 }
 const published = {
   makePrices: () => createProxyPriceProvider(),
   news: createGoogleNewsSource(undefined, lexiconClassifier, '/api/news'),
-  generalNews: createGoogleNewsSource(undefined, lexiconClassifier, '/api/news', GENERAL_QUERIES),
+  generalNews: createNewsSource(undefined, lexiconClassifier, { ...general, googleBase: '/api/news' }),
 }
 
 const TABS = [
   ['inicio', 'Início'],
   ['investimentos', 'Investimentos'],
-  ['estudos', 'Estudos'],
   ['agenda', 'Agenda'],
   ['noticias', 'Notícias'],
 ] as const
@@ -161,7 +161,6 @@ export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD
       {tab === 'investimentos' && (
         <InvestmentsPage makePrices={makePrices ?? defaults.makePrices} news={news ?? defaults.news} serverPrices={auth} />
       )}
-      {tab === 'estudos' && <StudyPage />}
       {tab === 'agenda' && <AgendaPage />}
       {tab === 'noticias' && <NewsPage news={generalNews ?? defaults.generalNews} />}
     </>

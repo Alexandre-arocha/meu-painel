@@ -92,7 +92,7 @@ export function InvestmentsPage({ makePrices, news, now = () => new Date(), stor
             saveSettings(next, store)
           }}
         />
-        <NewsList items={items} now={current} />
+        <NewsList items={items.slice(0, 20)} now={current} />
         {!serverPrices && (
         <section className="card wide" aria-label="Configurações">
           <h2>Configurações</h2>

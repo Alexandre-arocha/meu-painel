@@ -2,8 +2,6 @@
 export const SYNC_KEYS = [
   'painel:v1:portfolio',
   'painel:v1:settings',
-  'painel:v1:attempts',
-  'painel:v1:questions',
   'painel:v1:events',
   'painel:v1:routine',
 ] as const

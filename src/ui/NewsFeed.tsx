@@ -1,19 +1,40 @@
 import { useEffect, useState } from 'react'
 import { markPortfolio, type NewsItem, type NewsSource } from '../data/news'
-import { loadNews, saveNews } from '../data/storage'
+import { loadNews, loadTranslations, saveNews, saveTranslations } from '../data/storage'
+import { createTranslator, translateNews, type Translator } from '../data/translate'
+import { lexiconClassifier } from '../domain/tone'
 import { dayTime, hhmm } from './format'
 import { NewsList } from './NewsList'
 
-const TOPICS = ['Todas', 'Carteira', 'Mercado', 'Concursos', 'Tecnologia']
+const TOPICS = ['Tudo', 'Mercado', 'Mundo', 'Política', 'Tecnologia', 'Seus ativos']
+const PAGE = 20
+const serverTranslator = createTranslator()
 
 type Status = { kind: 'loading' } | { kind: 'fresh'; at: string } | { kind: 'saved'; at: string } | { kind: 'failed' }
-type Props = { news: NewsSource; now?: () => Date; store?: Storage; limit?: number; title?: string }
+export type NewsFeedProps = {
+  news: NewsSource
+  now?: () => Date
+  store?: Storage
+  limit?: number
+  title?: string
+  translate?: Translator
+  layout?: 'list' | 'cards'
+}
 
 // Feed com temas, Atualizar e as notícias salvas quando a busca falha. Usado na aba Notícias e no Início.
-export function NewsFeed({ news, now = () => new Date(), store = localStorage, limit, title = 'Feed de notícias' }: Props) {
+export function NewsFeed({
+  news,
+  now = () => new Date(),
+  store = localStorage,
+  limit,
+  title = 'Feed de notícias',
+  translate = serverTranslator,
+  layout = 'list',
+}: NewsFeedProps) {
   const [items, setItems] = useState<NewsItem[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
-  const [topic, setTopic] = useState('Todas')
+  const [topic, setTopic] = useState('Tudo')
+  const [count, setCount] = useState(PAGE)
   const [round, setRound] = useState(0)
 
   // `now` fica fora das dependências: é só o relógio, e a função padrão muda a cada render.
@@ -47,8 +68,28 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
     }
   }, [news, store, round])
 
-  const shown = topic === 'Todas' ? items : items.filter((i) => i.tags.includes(topic))
+  const shown = topic === 'Tudo' ? items : items.filter((i) => i.tags.includes(topic))
+  const visible = shown.slice(0, limit ?? count)
   const loading = status.kind === 'loading'
+
+  // Só as manchetes estrangeiras que estão na tela vão ao tradutor, para caber na cota grátis do DeepL.
+  const pending = visible.filter((i) => i.lang && i.lang !== 'pt' && !i.original)
+  const pendingKey = pending.map((i) => i.id).join('\n')
+  // As dependências são só a chave: o mesmo conjunto de manchetes não pede tradução de novo a cada render.
+  useEffect(() => {
+    if (!pendingKey) return
+    let alive = true
+    const cache = loadTranslations(store)
+    translateNews(pending, translate, cache, lexiconClassifier).then((r) => {
+      if (!alive) return
+      if (Object.keys(r.cache).length > Object.keys(cache).length) saveTranslations(r.cache, store)
+      const done = new Map(r.items.filter((i) => i.original).map((i) => [i.id, i]))
+      if (done.size > 0) setItems((all) => all.map((i) => done.get(i.id) ?? i))
+    })
+    return () => {
+      alive = false
+    }
+  }, [pendingKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -65,7 +106,16 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
       <div className="toolbar">
         <div className="chips" role="group" aria-label="Temas">
           {TOPICS.map((t) => (
-            <button key={t} type="button" className="chip" aria-pressed={topic === t} onClick={() => setTopic(t)}>
+            <button
+              key={t}
+              type="button"
+              className="chip"
+              aria-pressed={topic === t}
+              onClick={() => {
+                setTopic(t)
+                setCount(PAGE)
+              }}
+            >
               {t}
             </button>
           ))}
@@ -79,12 +129,18 @@ export function NewsFeed({ news, now = () => new Date(), store = localStorage, l
       </p>
       <div className="grid">
         <NewsList
-          items={limit ? shown.slice(0, limit) : shown}
+          items={visible}
           now={now()}
           title={title}
-          empty={topic === 'Todas' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
+          cards={layout === 'cards'}
+          empty={topic === 'Tudo' ? 'Nenhuma notícia por enquanto.' : `Nenhuma notícia de ${topic} agora.`}
         />
       </div>
+      {!limit && shown.length > count && (
+        <button type="button" className="ghost show-more" onClick={() => setCount((c) => c + PAGE)}>
+          Mostrar mais
+        </button>
+      )}
     </>
   )
 }
