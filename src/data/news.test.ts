@@ -1,14 +1,18 @@
 import {
+  assetQueries,
   createGoogleNewsSource,
   createNewsSource,
   dedupe,
   markPortfolio,
   parseRss,
+  portfolioQueries,
+  portfolioTerms,
   safeLink,
   sortNews,
   type NewsItem,
 } from './news'
 import { FEED_IDS, FEEDS } from './feeds'
+import type { Position } from '../domain/portfolio'
 import { lexiconClassifier } from '../domain/tone'
 
 const xml = `<?xml version="1.0"?><rss><channel>
@@ -57,13 +61,23 @@ test('sortNews ordena da mais nova para a mais antiga e deixa sem data no fim', 
 
 const okFetch = (async () => ({ ok: true, status: 200, text: async () => xml })) as unknown as typeof fetch
 
-test('fonte de notícias busca os 4 termos, remove repetidas e classifica o tom', async () => {
+const queries = [
+  { q: 'Banco do Brasil BBAS3', tag: 'b3:BBAS3' },
+  { q: 'B3 B3SA3', tag: 'b3:B3SA3' },
+  { q: 'Selic', tag: 'Selic' },
+  { q: 'renda fixa', tag: 'renda fixa' },
+]
+
+test('fonte de notícias busca cada termo, lido na hora da busca, remove repetidas e classifica o tom', async () => {
   let calls = 0
   const f = (async (...a: Parameters<typeof fetch>) => {
     calls++
     return okFetch(...a)
   }) as unknown as typeof fetch
-  const items = await createGoogleNewsSource(f, lexiconClassifier).fetchNews()
+  let list = queries.slice(0, 1)
+  const source = createGoogleNewsSource(f, lexiconClassifier, '/news-proxy', () => list)
+  list = queries
+  const items = await source.fetchNews()
   expect(calls).toBe(4)
   expect(items).toHaveLength(2)
   expect(items[0]).toMatchObject({ title: 'Banco do Brasil tem lucro', tone: 'positive' })
@@ -81,14 +95,37 @@ test('parseRss guarda o link seguro de cada item', () => {
   expect(parseRss(xml, 'BBAS3')[0].link).toBe('http://a/1')
 })
 
-test('markPortfolio marca com "Seus ativos" as notícias que citam BB, BBAS3, B3 ou B3SA3', () => {
-  const out = markPortfolio([
-    { ...item('Banco do Brasil anuncia dividendos', null), tags: ['Mercado'] },
-    item('Ibovespa sobe', null),
-    item('B3 tem recorde de investidores', null),
-    { ...item('BBAS3 em alta', null), tags: ['Seus ativos'] },
-  ])
+test('markPortfolio marca com "Seus ativos" as notícias que citam um código ou nome da carteira', () => {
+  const terms = ['BBAS3', 'Banco do Brasil', 'B3SA3', 'B3']
+  const out = markPortfolio(
+    [
+      { ...item('Banco do Brasil anuncia dividendos', null), tags: ['Mercado'] },
+      item('Ibovespa sobe', null),
+      item('B3 tem recorde de investidores', null),
+      { ...item('BBAS3 em alta', null), tags: ['Seus ativos'] },
+    ],
+    terms,
+  )
   expect(out.map((i) => i.tags)).toEqual([['Mercado', 'Seus ativos'], [], ['Seus ativos'], ['Seus ativos']])
+  expect(markPortfolio([item('Banco do Brasil anuncia dividendos', null)], [])[0].tags).toEqual([])
+})
+
+test('as buscas e os termos de "Seus ativos" saem dos ativos da B3 e dos EUA da carteira', () => {
+  const positions: Position[] = [
+    { id: '1', kind: 'acao', symbol: 'BBAS3', quantity: 1, name: 'Banco do Brasil' },
+    { id: '2', kind: 'exterior', symbol: 'AAPL', quantity: 1 },
+    { id: '3', kind: 'cripto', symbol: 'bitcoin', quantity: 1, name: 'Bitcoin' },
+    { id: '4', kind: 'renda-fixa', name: 'CDB', amount: 1, subtype: 'cdb' },
+  ]
+  expect(assetQueries(positions)).toEqual([
+    { q: 'Banco do Brasil BBAS3', tag: 'b3:BBAS3' },
+    { q: 'AAPL', tag: 'us:AAPL' },
+  ])
+  expect(portfolioQueries(positions)).toEqual([
+    { q: 'Banco do Brasil BBAS3', tag: 'Seus ativos' },
+    { q: 'AAPL', tag: 'Seus ativos' },
+  ])
+  expect(portfolioTerms(positions)).toEqual(['BBAS3', 'Banco do Brasil', 'AAPL'])
 })
 
 test('parseRss acha a foto em media:content (a maior), media:thumbnail, enclosure ou img do texto, só em https', () => {
@@ -169,6 +206,6 @@ test('fonte de notícias segue com os termos que deram certo quando um falha', a
     if (String(url).includes('Selic')) throw new Error('rede')
     return okFetch(url)
   }) as unknown as typeof fetch
-  const items = await createGoogleNewsSource(f, lexiconClassifier).fetchNews()
+  const items = await createGoogleNewsSource(f, lexiconClassifier, '/news-proxy', queries).fetchNews()
   expect(items).toHaveLength(2)
 })

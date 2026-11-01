@@ -1,5 +1,7 @@
 // Chaves do localStorage que vão para o banco. Caches de preço e de notícia ficam só no aparelho.
+// A carteira antiga (portfolio) continua: uma versão velha do app em outro aparelho ainda grava nela.
 export const SYNC_KEYS = [
+  'painel:v1:positions',
   'painel:v1:portfolio',
   'painel:v1:settings',
   'painel:v1:events',

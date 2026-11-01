@@ -67,7 +67,7 @@ h1, h2, p { margin: 0; }
 .card { background: var(--card); border-radius: var(--radius); padding: 20px; animation: rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .card h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mut); }
 .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.card-head .chips { flex-wrap: nowrap; }
+.card-head .chips { flex-wrap: wrap; }
 .price { margin-top: 4px; font-size: 2.25rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
 .num { font-variant-numeric: tabular-nums; }
 .up { color: var(--up); } .dn { color: var(--dn); } .mut, .muted { color: var(--mut); font-size: 0.875rem; }
@@ -124,6 +124,25 @@ input[aria-invalid='true'] { border-color: var(--dn); }
 .list li { padding: 10px 0; border-top: 1px solid var(--bd); }
 .list li:first-child { border-top: 0; }
 .list li.item { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+/* Seus investimentos: um grupo por classe; cada ativo numa linha com o valor, a variação e as ações. */
+.pos-group { margin-top: 20px; }
+.pos-group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--bd); }
+.pos-group-head h3, .pos-form h3 { font-size: 0.9375rem; font-weight: 600; }
+.positions { list-style: none; margin: 0; padding: 0; }
+.positions li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 16px; padding: 10px 0; border-bottom: 1px solid var(--bd); }
+.pos-main { display: grid; gap: 2px; min-width: 0; }
+.pos-name { font-weight: 600; overflow-wrap: anywhere; }
+.pos-value { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.pos-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; }
+.pos-actions button { padding: 10px 14px; }
+.ghost.danger { color: var(--dn); }
+.pos-form { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--bd); }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+@media (max-width: 600px) {
+  .positions li { grid-template-columns: minmax(0, 1fr) auto; }
+  .pos-actions { grid-column: 1 / -1; justify-content: flex-start; margin-left: -14px; }
+}
 .news { list-style: none; margin: 4px 0 0; padding: 0; }
 .news li { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-top: 1px solid var(--bd); }
 .news li:first-child { border-top: 0; }

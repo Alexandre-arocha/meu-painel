@@ -1,3 +1,4 @@
+import { isPriced, priceKey, type Position } from '../domain/portfolio'
 import { normalize, type Tone, type ToneClassifier } from '../domain/tone'
 import { FEEDS, type FeedId } from './feeds'
 
@@ -20,20 +21,24 @@ export interface NewsSource {
 }
 
 export type NewsQuery = { q: string; tag: string }
+// Lista fixa ou função lida na hora de cada busca: um ativo novo na carteira já entra na próxima.
+type Queries = NewsQuery[] | (() => NewsQuery[])
 
-// Termos da fase 1 (ver plano). Em dev, /news-proxy aponta para https://news.google.com/rss (vite.config.ts).
-export const INVESTMENT_QUERIES: NewsQuery[] = [
-  { q: 'Banco do Brasil BBAS3', tag: 'BBAS3' },
-  { q: 'B3 B3SA3', tag: 'B3SA3' },
-  { q: 'Selic', tag: 'Selic' },
-  { q: 'renda fixa', tag: 'renda fixa' },
-]
+const MAX_ASSETS = 10 // uma busca no Google News por ativo
 
-// Buscas do Google News para o tema "Seus ativos" do feed geral.
-export const PORTFOLIO_QUERIES: NewsQuery[] = [
-  { q: 'Banco do Brasil BBAS3', tag: 'Seus ativos' },
-  { q: 'B3 B3SA3', tag: 'Seus ativos' },
-]
+// Ativos da B3 e dos EUA. Cripto e moeda não têm busca própria.
+const newsAssets = (positions: Position[]) =>
+  positions.filter(isPriced).filter((p) => p.kind !== 'cripto' && p.kind !== 'moeda').slice(0, MAX_ASSETS)
+
+// Uma busca por ativo, com o nome quando houver ("Banco do Brasil BBAS3"), marcada com a chave de preço que o motor usa.
+export const assetQueries = (positions: Position[]): NewsQuery[] =>
+  newsAssets(positions).map((p) => ({ q: [p.name, p.symbol].filter(Boolean).join(' '), tag: priceKey(p) }))
+
+// As mesmas buscas para o tema "Seus ativos" do feed geral. Em dev, /news-proxy aponta para https://news.google.com/rss.
+export const portfolioQueries = (positions: Position[]): NewsQuery[] => assetQueries(positions).map(({ q }) => ({ q, tag: 'Seus ativos' }))
+
+// Códigos e nomes que marcam uma manchete como "Seus ativos".
+export const portfolioTerms = (positions: Position[]) => newsAssets(positions).flatMap((p) => (p.name ? [p.symbol, p.name] : [p.symbol]))
 
 // Links de RSS vêm de fora: só http(s) absoluto vira link, para nunca virar javascript: na tela.
 export function safeLink(url: string | null | undefined): string | null {
@@ -52,13 +57,13 @@ export function safeImage(url: string | null | undefined): string | undefined {
   return href?.startsWith('https:') ? href : undefined
 }
 
-const PORTFOLIO_TERMS = /\b(banco do brasil|bbas3|b3sa3|b3)\b/
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-// Marca com a tag "Seus ativos" as notícias cujo título cita as ações do dono.
-export function markPortfolio(items: NewsItem[]): NewsItem[] {
-  return items.map((i) =>
-    !i.tags.includes('Seus ativos') && PORTFOLIO_TERMS.test(normalize(i.title)) ? { ...i, tags: [...i.tags, 'Seus ativos'] } : i,
-  )
+// Marca com a tag "Seus ativos" as notícias cujo título cita um código ou nome da carteira.
+export function markPortfolio(items: NewsItem[], terms: string[]): NewsItem[] {
+  if (terms.length === 0) return items
+  const cited = new RegExp(`\\b(${terms.map((t) => escapeRegex(normalize(t))).join('|')})\\b`)
+  return items.map((i) => (!i.tags.includes('Seus ativos') && cited.test(normalize(i.title)) ? { ...i, tags: [...i.tags, 'Seus ativos'] } : i))
 }
 
 const text = (el: Element, name: string) => el.getElementsByTagName(name)[0]?.textContent?.trim() ?? ''
@@ -140,16 +145,20 @@ async function collect(requests: FeedRequest[], fetchFn: typeof fetch, classifie
 
 const googleUrl = (base: string, q: string) => `${base}/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
 
+// Uma busca do Google News por termo. A lista é lida na hora de cada busca.
+const googleRequests = (base: string, queries: Queries): FeedRequest[] =>
+  (typeof queries === 'function' ? queries() : queries).map(({ q, tag }) => ({ url: googleUrl(base, q), tag }))
+
 export function createGoogleNewsSource(
   fetchFn: typeof fetch = fetch,
   classifier: ToneClassifier,
   baseUrl = '/news-proxy',
-  queries: NewsQuery[] = INVESTMENT_QUERIES,
+  queries: Queries = [],
 ): NewsSource {
-  return { fetchNews: () => collect(queries.map(({ q, tag }) => ({ url: googleUrl(baseUrl, q), tag })), fetchFn, classifier) }
+  return { fetchNews: () => collect(googleRequests(baseUrl, queries), fetchFn, classifier) }
 }
 
-type GeneralOpts = { feeds: FeedId[]; queries: NewsQuery[]; googleBase?: string; feedBase?: string }
+type GeneralOpts = { feeds: FeedId[]; queries: Queries; googleBase?: string; feedBase?: string }
 
 // Feed geral: os feeds com foto (do Brasil e do mundo) mais as buscas do Google News dos seus ativos.
 export function createNewsSource(
@@ -157,9 +166,6 @@ export function createNewsSource(
   classifier: ToneClassifier,
   { feeds, queries, googleBase = '/news-proxy', feedBase = '/api/news/feed' }: GeneralOpts,
 ): NewsSource {
-  const requests: FeedRequest[] = [
-    ...feeds.map((id) => ({ ...FEEDS[id], url: `${feedBase}?src=${id}` })),
-    ...queries.map(({ q, tag }) => ({ url: googleUrl(googleBase, q), tag })),
-  ]
-  return { fetchNews: () => collect(requests, fetchFn, classifier) }
+  const fromFeeds: FeedRequest[] = feeds.map((id) => ({ ...FEEDS[id], url: `${feedBase}?src=${id}` }))
+  return { fetchNews: () => collect([...fromFeeds, ...googleRequests(googleBase, queries)], fetchFn, classifier) }
 }

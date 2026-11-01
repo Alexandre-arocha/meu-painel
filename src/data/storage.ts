@@ -1,16 +1,16 @@
-import type { Allocation, Holding, Portfolio } from '../domain/portfolio'
+import { fromLegacy, readPositions, type Allocation, type ClassTargets, type LegacyPortfolio, type Position } from '../domain/portfolio'
 import type { Point, Quote } from './prices'
 import { safeImage, type NewsItem } from './news'
 import { DEFAULT_ROUTINE, EVENT_KINDS, isDate, isTime, type AgendaEvent, type Routine } from '../domain/agenda'
 
 const PORTFOLIO_KEY = 'painel:v1:portfolio'
+const POSITIONS_KEY = 'painel:v1:positions'
 const SETTINGS_KEY = 'painel:v1:settings'
 const VERSION = 1
 const TICKERS = ['BBAS3', 'B3SA3']
 
-export type Settings = { brapiToken?: string; targetAllocation?: Allocation }
-
-const emptyPortfolio = (): Portfolio => ({ holdings: [], fixedIncome: { amount: 0 } })
+// targetAllocation é a meta da versão anterior; classTargets, a meta por classe.
+export type Settings = { brapiToken?: string; targetAllocation?: Allocation; classTargets?: ClassTargets }
 
 function readJson(store: Storage, key: string): unknown {
   try {
@@ -21,16 +21,26 @@ function readJson(store: Storage, key: string): unknown {
   }
 }
 
-export function loadPortfolio(store: Storage = localStorage): Portfolio {
-  const data = readJson(store, PORTFOLIO_KEY) as { v?: number; portfolio?: Partial<Portfolio> } | null
-  if (!data || data.v !== VERSION || !data.portfolio) return emptyPortfolio()
+// Carteira da versão anterior. Só é lida para a migração e nunca é apagada: uma versão velha do app em outro aparelho ainda usa.
+function loadLegacy(store: Storage): LegacyPortfolio | null {
+  const data = readJson(store, PORTFOLIO_KEY) as { v?: number; portfolio?: Partial<LegacyPortfolio> } | null
+  if (!data || data.v !== VERSION || !data.portfolio) return null
   const holdings = (Array.isArray(data.portfolio.holdings) ? data.portfolio.holdings : []).filter(
-    (h): h is Holding =>
-      !!h && TICKERS.includes(h.symbol) && Number.isInteger(h.quantity) && h.quantity >= 0,
+    (h) => !!h && TICKERS.includes(h.symbol) && Number.isInteger(h.quantity) && h.quantity >= 0,
   )
   const fi = data.portfolio.fixedIncome
   const amount = fi && Number.isFinite(fi.amount) && fi.amount >= 0 ? fi.amount : 0
   return { holdings, fixedIncome: { ...fi, amount } }
+}
+
+// Sem a lista nova, migra a carteira antiga uma vez. Uma versão desconhecida da lista nunca é sobrescrita.
+export function loadPositions(store: Storage = localStorage): Position[] {
+  const data = readJson(store, POSITIONS_KEY) as { v?: number; positions?: unknown } | null
+  if (data !== null) return data.v === VERSION ? readPositions(data.positions) : []
+  const old = loadLegacy(store)
+  const migrated = old ? fromLegacy(old) : []
+  if (migrated.length > 0) savePositions(migrated, store)
+  return migrated
 }
 
 let writeListener: ((key: string) => void) | null = null
@@ -51,8 +61,8 @@ function write(store: Storage, key: string, data: unknown): boolean {
   }
 }
 
-export function savePortfolio(p: Portfolio, store: Storage = localStorage): boolean {
-  return write(store, PORTFOLIO_KEY, { v: VERSION, portfolio: p })
+export function savePositions(positions: Position[], store: Storage = localStorage): boolean {
+  return write(store, POSITIONS_KEY, { v: VERSION, positions })
 }
 
 const QUOTES_KEY = 'painel:v1:lastQuotes'
@@ -87,18 +97,26 @@ export function saveTheme(theme: Theme, store: Storage = localStorage): boolean 
   return write(store, THEME_KEY, theme)
 }
 
-const HISTORY_KEY = 'painel:v1:history'
-export type HistoryCache = { day: string; series: Record<string, Point[]> }
+const PRICES_KEY = 'painel:v1:prices'
+// series: fechamentos diários por chave de preço ("b3:PETR4"); fetched: o dia da última busca de cada uma.
+export type PricesCache = { series: Record<string, Point[]>; fetched: Record<string, string> }
 
-// Histórico diário guardado por dia: 1 chamada por ativo por dia na cota da brapi. Fica fora da sincronização.
-export function loadHistory(store: Storage = localStorage): HistoryCache | null {
-  const data = readJson(store, HISTORY_KEY) as Partial<HistoryCache> | null
-  if (!data || typeof data.day !== 'string' || !data.series || typeof data.series !== 'object') return null
-  return data as HistoryCache
+const isPoint = (x: unknown): x is Point => !!x && typeof (x as Point).t === 'string' && Number.isFinite((x as Point).p)
+
+// Histórico guardado só neste aparelho: cada busca junta dias novos ao que já existe, então ele só cresce.
+export function loadPrices(store: Storage = localStorage): PricesCache {
+  const d = readJson(store, PRICES_KEY) as Partial<PricesCache> | null
+  const series: PricesCache['series'] = {}
+  for (const [key, points] of Object.entries(d?.series ?? {})) {
+    const valid = Array.isArray(points) ? points.filter(isPoint) : []
+    if (valid.length > 0) series[key] = valid
+  }
+  const fetched = Object.fromEntries(Object.entries(d?.fetched ?? {}).filter(([, day]) => typeof day === 'string'))
+  return { series, fetched }
 }
 
-export function saveHistory(h: HistoryCache, store: Storage = localStorage): boolean {
-  return write(store, HISTORY_KEY, h)
+export function savePrices(cache: PricesCache, store: Storage = localStorage): boolean {
+  return write(store, PRICES_KEY, cache)
 }
 
 const EVENTS_KEY = 'painel:v1:events'

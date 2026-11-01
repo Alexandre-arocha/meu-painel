@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vitest/config'
-import { feedResponse, translateResponse } from './server/api.ts'
+import { feedResponse, historyResponse, translateResponse } from './server/api.ts'
 import { manifest } from './src/pwa-manifest.ts'
 
 async function send(res: ServerResponse, r: Response) {
@@ -20,6 +20,10 @@ const devApi = (deeplKey: string | undefined): Plugin => ({
     server.middlewares.use('/api/news/feed', async (req, res) => {
       const id = new URL(req.url ?? '', 'http://localhost').searchParams.get('src') ?? ''
       await send(res, await feedResponse(id, fetch))
+    })
+    server.middlewares.use('/api/history', async (req, res) => {
+      const q = new URL(req.url ?? '', 'http://localhost').searchParams
+      await send(res, await historyResponse(q.get('symbol') ?? '', q.get('range') ?? '', fetch))
     })
     server.middlewares.use('/api/translate', async (req, res) => {
       const chunks: Buffer[] = []

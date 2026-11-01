@@ -1,4 +1,12 @@
-import { createBrapiProvider, createProxyPriceProvider, isStale } from './prices'
+import { createBrapiProvider, createProxyPriceProvider, isStale, marketOpen } from './prices'
+
+test('marketOpen: pregão da B3 de segunda a sexta, das 10h às 17h30 de Brasília', () => {
+  expect(marketOpen(new Date('2026-10-28T13:00:00Z'))).toBe(true) // quarta, 10:00
+  expect(marketOpen(new Date('2026-10-28T20:30:00Z'))).toBe(true) // quarta, 17:30
+  expect(marketOpen(new Date('2026-10-28T12:59:00Z'))).toBe(false) // quarta, 9:59
+  expect(marketOpen(new Date('2026-10-28T21:00:00Z'))).toBe(false) // quarta, 18:00
+  expect(marketOpen(new Date('2026-10-31T15:00:00Z'))).toBe(false) // sábado
+})
 
 const NOW = new Date('2026-10-28T14:00:00Z') // quarta, 11:00 em Brasília
 

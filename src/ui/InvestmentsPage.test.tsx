@@ -1,9 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { InvestmentsPage } from './InvestmentsPage'
-import { loadPortfolio, saveQuotes, saveSettings } from '../data/storage'
+import type { Markets } from '../data/markets'
+import type { NewsSource } from '../data/news'
 import type { Point, PriceProvider, Quote } from '../data/prices'
-import type { NewsItem, NewsSource } from '../data/news'
+import { loadPositions, loadSettings, savePositions, saveQuotes, saveSettings } from '../data/storage'
+import type { Position } from '../domain/portfolio'
 
 const quote = (symbol: string, over: Partial<Quote> = {}): Quote => ({
   symbol,
@@ -23,139 +26,119 @@ const okPrices =
     },
   })
 
-// Pregões à meia-noite de Brasília (03:00 UTC): 30 dias a partir de 01/08, subindo 10 centavos por dia.
-const daily = Array.from({ length: 30 }, (_, i): Point => ({ t: new Date(Date.UTC(2026, 7, 1 + i, 3)).toISOString(), p: 20 + i * 0.1 }))
-const withHistory =
-  (calls: string[] = []) =>
-  (): PriceProvider => ({
-    getQuotes: async (symbols) => symbols.map((s) => quote(s, { updatedAt: '2026-09-01T15:00:00.000Z' })),
-    getHistory: async (symbol) => {
-      calls.push(symbol)
-      return daily
+// Pregões de agosto às 10:00 de Brasília, subindo 10 centavos por dia.
+const daily = Array.from({ length: 30 }, (_, i): Point => ({ t: new Date(Date.UTC(2026, 7, 1 + i, 13)).toISOString(), p: 20 + i * 0.1 }))
+function markets(calls: string[] = []): Markets {
+  return {
+    chart: async (symbol, range) => {
+      calls.push(`${symbol} ${range}`)
+      return { currency: 'BRL', price: 22.9, changePct: 0.4, updatedAt: null, name: 'Petróleo Brasileiro S.A. - Petrobras', points: daily }
     },
-  })
+    crypto: async () => [],
+    cryptoHistory: async () => [],
+    findCrypto: async () => null,
+    fx: async () => [],
+    fxHistory: async () => [],
+  }
+}
 
 const noNews: NewsSource = { fetchNews: async () => [] }
-const newsWith = (items: NewsItem[]): NewsSource => ({ fetchNews: async () => items })
-
-const item = (title: string, tone: NewsItem['tone']): NewsItem => ({
-  id: title,
-  title,
-  link: null,
-  source: 'Fonte',
-  publishedAt: new Date().toISOString(),
-  tags: ['BBAS3'],
-  tone,
-  reason: 'palavra-chave',
-})
+const bbas3: Position = { id: 'a', kind: 'acao', symbol: 'BBAS3', quantity: 100, name: 'Banco do Brasil' }
+const withToken = () => saveSettings({ brapiToken: 'tok' })
+const renderPage = (over: Partial<ComponentProps<typeof InvestmentsPage>> = {}) =>
+  render(<InvestmentsPage makePrices={okPrices()} markets={markets()} news={noNews} {...over} />)
 
 beforeEach(() => localStorage.clear())
-const withToken = () => saveSettings({ brapiToken: 'tok' })
 
-test('mostra preço e variação de BBAS3', async () => {
+test('a carteira antiga migra e aparece com o preço e a variação do dia', async () => {
   withToken()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  const region = await screen.findByRole('region', { name: 'BBAS3' })
-  expect(await within(region).findByText(/30,00/)).toBeInTheDocument()
-  expect(within(region).getByText('+1,50%')).toBeInTheDocument()
+  localStorage.setItem('painel:v1:portfolio', JSON.stringify({ v: 1, portfolio: { holdings: [{ symbol: 'BBAS3', quantity: 100 }], fixedIncome: { amount: 10000 } } }))
+  renderPage()
+  const stocks = await screen.findByRole('list', { name: 'Ações' })
+  expect(within(stocks).getByText('BBAS3')).toBeInTheDocument()
+  expect(await within(stocks).findByText(/R\$\s3\.000,00/)).toBeInTheDocument()
+  expect(within(stocks).getByText('+1,50%')).toBeInTheDocument()
+  expect(within(screen.getByRole('list', { name: 'Renda fixa' })).getByText(/R\$\s10\.000,00/)).toBeInTheDocument()
 })
 
 test('com preços no servidor não aparece campo de token', async () => {
+  savePositions([bbas3])
   const fromServer = (): PriceProvider => ({ getQuotes: async (symbols) => symbols.map((s) => quote(s)) })
-  render(<InvestmentsPage makePrices={fromServer} news={noNews} serverPrices />)
-  await screen.findByRole('region', { name: 'BBAS3' })
+  renderPage({ makePrices: fromServer, serverPrices: true })
+  await screen.findByText('+1,50%')
   expect(screen.queryByLabelText('Token da brapi')).toBeNull()
 })
 
-test('mostra "dado velho" quando stale é true', async () => {
+test('cotação velha aparece como "dado velho"', async () => {
   withToken()
-  render(<InvestmentsPage makePrices={okPrices({ stale: true })} news={noNews} />)
-  const region = await screen.findByRole('region', { name: 'BBAS3' })
-  expect(await within(region).findByText('dado velho')).toBeInTheDocument()
+  savePositions([bbas3])
+  renderPage({ makePrices: okPrices({ stale: true }) })
+  expect(await screen.findByText('dado velho')).toBeInTheDocument()
 })
 
-test('sem token mostra campo para informar o token', async () => {
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  expect(await screen.findByLabelText('Token da brapi')).toBeInTheDocument()
-  expect(screen.getByText(/Informe o token/)).toBeInTheDocument()
+test('sem token avisa para informar o token da brapi', async () => {
+  savePositions([bbas3])
+  renderPage()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Informe o token da brapi para ver os preços da B3.')
+  expect(screen.getByLabelText('Token da brapi')).toBeInTheDocument()
 })
 
 test('API fora do ar mostra o último valor guardado marcado como velho', async () => {
   withToken()
-  saveQuotes([quote('BBAS3', { price: 28 })])
+  savePositions([bbas3])
+  saveQuotes([quote('b3:BBAS3', { price: 28 })])
   const down = (): PriceProvider => ({
     async getQuotes() {
       throw new Error('erro ao buscar preços (500)')
     },
   })
-  render(<InvestmentsPage makePrices={down} news={noNews} />)
-  const region = await screen.findByRole('region', { name: 'BBAS3' })
-  expect(await within(region).findByText(/28,00/)).toBeInTheDocument()
-  expect(within(region).getByText('dado velho')).toBeInTheDocument()
+  renderPage({ makePrices: down })
+  const stocks = await screen.findByRole('list', { name: 'Ações' })
+  expect(await within(stocks).findByText(/R\$\s2\.800,00/)).toBeInTheDocument()
+  expect(within(stocks).getByText('dado velho')).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toHaveTextContent('erro ao buscar preços')
 })
 
-test('quantidade inválida mostra mensagem e não salva', async () => {
+test('adicionar um investimento confere o código e grava a lista nova', async () => {
   withToken()
-  const user = userEvent.setup()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  await user.type(await screen.findByLabelText('Quantidade de BBAS3'), 'abc')
-  await user.click(screen.getByRole('button', { name: 'Salvar carteira' }))
-  expect(await screen.findByText('use apenas números positivos')).toBeInTheDocument()
-  expect(loadPortfolio(localStorage).holdings).toEqual([])
-})
-
-test('quantidades válidas são salvas', async () => {
-  withToken()
-  const user = userEvent.setup()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  await user.type(await screen.findByLabelText('Quantidade de BBAS3'), '10')
-  await user.type(screen.getByLabelText('Renda fixa (R$)'), '10.000,50')
-  await user.click(screen.getByRole('button', { name: 'Salvar carteira' }))
-  expect(loadPortfolio(localStorage)).toEqual({
-    holdings: [{ symbol: 'BBAS3', quantity: 10 }],
-    fixedIncome: { amount: 10000.5 },
-  })
-})
-
-test('carteira vazia mostra convite para informar quantidades', async () => {
-  withToken()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  expect(await screen.findByText(/Informe suas quantidades/)).toBeInTheDocument()
-})
-
-test('lista de notícias mostra o tom de cada item', async () => {
-  withToken()
-  render(<InvestmentsPage makePrices={okPrices()} news={newsWith([item('Banco tem lucro', 'positive')])} />)
-  expect(await screen.findByText('Banco tem lucro')).toBeInTheDocument()
-  expect(screen.getAllByText('tom positivo').length).toBeGreaterThan(0)
-})
-
-test('mostra o aviso "Sinal de apoio, não é previsão garantida."', async () => {
-  withToken()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  expect(await screen.findByText('Sinal de apoio, não é previsão garantida.')).toBeInTheDocument()
-})
-
-test('cartão do ativo mostra o último mês do histórico diário, terminando no preço de agora', async () => {
-  render(<InvestmentsPage makePrices={withHistory()} news={noNews} serverPrices />)
-  const region = await screen.findByRole('region', { name: 'BBAS3' })
-  const chart = await within(region).findByRole('img', { name: /Preço ajustado de BBAS3 no último mês/ })
-  // 22 pregões: de 10/08 até a cotação de 01/09 (R$ 30,00), que entra como o último dia.
-  expect(chart).toHaveAccessibleName(/de 10\/08 a 01\/09, entre R\$\s20,90 e R\$\s30,00/)
-})
-
-test('o motor e os cartões usam a mesma busca do histórico: uma por ativo', async () => {
   const calls: string[] = []
-  render(<InvestmentsPage makePrices={withHistory(calls)} news={noNews} serverPrices />)
-  const region = await screen.findByRole('region', { name: 'B3SA3' })
-  await within(region).findByRole('img', { name: /no último mês/ })
-  expect([...calls].sort()).toEqual(['B3SA3', 'BBAS3'])
+  const user = userEvent.setup()
+  renderPage({ markets: markets(calls) })
+  const card = screen.getByRole('region', { name: 'Seus investimentos' })
+  await user.type(within(card).getByLabelText('Código'), 'PETR4')
+  await user.type(within(card).getByLabelText('Quantidade'), '10')
+  await user.click(within(card).getByRole('button', { name: 'Adicionar' }))
+  expect(await within(card).findByText('Petróleo Brasileiro · 10 ações')).toBeInTheDocument()
+  expect(loadPositions()).toEqual([{ id: expect.any(String), kind: 'acao', symbol: 'PETR4', quantity: 10, name: 'Petróleo Brasileiro' }])
+  expect(calls).toContain('PETR4.SA 5d')
 })
 
-test('sem histórico o cartão avisa no lugar do gráfico do mês', async () => {
+test('metas por classe: soma errada mostra o erro; soma certa grava', async () => {
   withToken()
-  render(<InvestmentsPage makePrices={okPrices()} news={noNews} />)
-  const region = await screen.findByRole('region', { name: 'BBAS3' })
-  expect(await within(region).findByText('Sem histórico para o gráfico do mês.')).toBeInTheDocument()
+  const user = userEvent.setup()
+  renderPage()
+  const card = screen.getByRole('region', { name: 'Divisão da carteira' })
+  await user.click(within(card).getByText('Metas por classe'))
+  await user.type(within(card).getByLabelText('Meta Renda fixa (%)'), '60')
+  await user.type(within(card).getByLabelText('Meta Ações (%)'), '30')
+  await user.click(within(card).getByRole('button', { name: 'Salvar metas' }))
+  expect(within(card).getByText('as metas devem somar 100% (agora somam 90%)')).toBeInTheDocument()
+  await user.clear(within(card).getByLabelText('Meta Ações (%)'))
+  await user.type(within(card).getByLabelText('Meta Ações (%)'), '40')
+  await user.click(within(card).getByRole('button', { name: 'Salvar metas' }))
+  expect(loadSettings().classTargets).toEqual({ 'renda-fixa': 0.6, acoes: 0.4, fiis: 0, etfs: 0, exterior: 0, cripto: 0, moedas: 0, fundos: 0 })
+})
+
+test('o motor usa uma busca só do histórico de 5 anos por ativo', async () => {
+  withToken()
+  savePositions([bbas3])
+  const calls: string[] = []
+  renderPage({ markets: markets(calls) })
+  expect(await screen.findByRole('img', { name: /Preço ajustado de BBAS3/ })).toBeInTheDocument()
+  expect(calls.filter((c) => c.endsWith('5y'))).toEqual(['BBAS3.SA 5y'])
+})
+
+test('mostra o aviso "Sinal de apoio, não é previsão garantida."', () => {
+  renderPage()
+  expect(screen.getByText('Sinal de apoio, não é previsão garantida.')).toBeInTheDocument()
 })

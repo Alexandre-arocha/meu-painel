@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { markPortfolio, type NewsItem, type NewsSource } from '../data/news'
-import { loadNews, loadTranslations, saveNews, saveTranslations } from '../data/storage'
+import { markPortfolio, portfolioTerms, type NewsItem, type NewsSource } from '../data/news'
+import { loadNews, loadPositions, loadTranslations, saveNews, saveTranslations } from '../data/storage'
 import { createTranslator, translateNews, type Translator } from '../data/translate'
 import { lexiconClassifier } from '../domain/tone'
 import { dayTime, hhmm } from './format'
@@ -40,10 +40,11 @@ export function NewsFeed({
   // `now` fica fora das dependências: é só o relógio, e a função padrão muda a cada render.
   useEffect(() => {
     let alive = true
+    const terms = portfolioTerms(loadPositions(store))
     const showSaved = () => {
       const saved = loadNews(store)
       if (saved && saved.items.length > 0) {
-        setItems(markPortfolio(saved.items))
+        setItems(markPortfolio(saved.items, terms))
         setStatus({ kind: 'saved', at: saved.at })
       } else {
         setStatus({ kind: 'failed' })
@@ -56,7 +57,7 @@ export function NewsFeed({
         if (!alive) return
         if (fresh.length === 0) return showSaved()
         const at = now().toISOString()
-        setItems(markPortfolio(fresh))
+        setItems(markPortfolio(fresh, terms))
         setStatus({ kind: 'fresh', at })
         saveNews({ at, items: fresh }, store)
       })

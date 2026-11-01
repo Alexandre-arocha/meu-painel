@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HomePage } from './HomePage'
-import { saveEvents, savePortfolio } from '../data/storage'
+import { saveEvents, savePositions } from '../data/storage'
 import type { NewsItem, NewsSource } from '../data/news'
 import type { PriceProvider, Quote } from '../data/prices'
 
@@ -38,25 +38,33 @@ function renderHome(opts: { makePrices?: () => PriceProvider; news?: NewsSource 
   return render(<HomePage makePrices={opts.makePrices ?? noPrices} news={opts.news ?? feed([])} now={now} />)
 }
 
-test('Início mostra a data, os preços e o total da carteira', async () => {
-  savePortfolio({
-    holdings: [
-      { symbol: 'BBAS3', quantity: 100 },
-      { symbol: 'B3SA3', quantity: 200 },
-    ],
-    fixedIncome: { amount: 10000 },
-  })
+const bbas3 = { id: 'a', kind: 'acao' as const, symbol: 'BBAS3', quantity: 100, name: 'Banco do Brasil' }
+
+test('Início mostra a data, os preços, o total da carteira e a divisão por classe', async () => {
+  savePositions([
+    bbas3,
+    { id: 'b', kind: 'acao', symbol: 'B3SA3', quantity: 200, name: 'B3' },
+    { id: 'c', kind: 'renda-fixa', name: 'CDB', amount: 10000, subtype: 'cdb' },
+  ])
   renderHome({ makePrices: prices([quote('BBAS3', 16.46, -1.97), quote('B3SA3', 14.2, -3.34)]) })
   expect(screen.getByText('Quarta-feira, 28 de outubro')).toBeInTheDocument()
   expect(await screen.findByText('R$ 16,46')).toBeInTheDocument()
   expect(screen.getByText('R$ 14,20')).toBeInTheDocument()
   expect(screen.getByText('R$ 14.486,00')).toBeInTheDocument()
+  expect(screen.getByText('Ações')).toBeInTheDocument()
+  expect(screen.getByText('Renda fixa')).toBeInTheDocument()
 })
 
 test('Início sem preço mostra traço e o motivo, sem quebrar', async () => {
+  savePositions([bbas3])
   renderHome()
   expect(await screen.findByText('Informe o token da brapi em Editar carteira para ver os preços.')).toBeInTheDocument()
   expect(screen.getAllByText('—')).toHaveLength(2)
+})
+
+test('Início sem investimentos convida a cadastrar', () => {
+  renderHome()
+  expect(screen.getByText('Toque em Editar carteira para cadastrar seus investimentos.')).toBeInTheDocument()
 })
 
 test('Início mostra o feed de notícias com filtro por tema', async () => {

@@ -4,6 +4,10 @@ const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export const money = (n: number) => brl.format(n)
 
+const dec = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 8 })
+// Quantidade com fração, como "0,005" ou "1.500".
+export const decimal = (n: number) => dec.format(n)
+
 export const pct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2).replace('.', ',')}%`
 
 // Fração como porcentagem sem sinal: 0.2843 vira "28,4%".

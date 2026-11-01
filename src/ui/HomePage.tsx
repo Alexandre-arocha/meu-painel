@@ -1,32 +1,31 @@
 import { useState } from 'react'
+import { createMarkets, type Markets } from '../data/markets'
 import type { NewsSource } from '../data/news'
 import type { PriceProvider } from '../data/prices'
-import { loadEvents, loadPortfolio, loadRoutine, loadSettings } from '../data/storage'
+import { loadEvents, loadPositions, loadRoutine, loadSettings } from '../data/storage'
 import { countdownLabel, importantDates, planDay } from '../domain/agenda'
-import { allocation, portfolioValue, type Allocation } from '../domain/portfolio'
+import { CLASSES, isPriced, labelOf, positionValue, priceKey, resolveTargets, totals } from '../domain/portfolio'
 import { hhmm, localDate, longDate, money, pct } from './format'
 import { NewsFeed } from './NewsFeed'
-import { SYMBOLS, useQuotes } from './useQuotes'
+import { usePrices } from './usePrices'
 
-const PARTS: [keyof Allocation, string][] = [
-  ['fixedIncome', 'Renda fixa'],
-  ['BBAS3', 'BBAS3'],
-  ['B3SA3', 'B3SA3'],
-]
+const defaultMarkets = createMarkets()
+const TOP = 3 // ativos com cotação na linha de números
 const percent = (n: number) => `${Math.round(n * 100)}%`
 
 type Props = {
   makePrices: (token: string | undefined) => PriceProvider
+  markets?: Markets
   news: NewsSource
   now?: () => Date
   store?: Storage
 }
 
 // Tela única: números do dia, notícias, carteira e agenda. No celular vira uma coluna nessa ordem.
-export function HomePage({ makePrices, news, now = () => new Date(), store = localStorage }: Props) {
+export function HomePage({ makePrices, markets = defaultMarkets, news, now = () => new Date(), store = localStorage }: Props) {
   const [settings] = useState(() => loadSettings(store))
-  const [portfolio] = useState(() => loadPortfolio(store))
-  const { quotes, error } = useQuotes(makePrices, settings.brapiToken, store)
+  const [positions] = useState(() => loadPositions(store))
+  const { quotes, error } = usePrices(positions, { makePrices, token: settings.brapiToken, markets, store, now })
 
   const today = localDate(now())
   const events = loadEvents(store)
@@ -34,14 +33,19 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
   const nextDate = importantDates(events, today, 1)[0]
 
   const prices = Object.fromEntries(quotes.map((q) => [q.symbol, q.price]))
-  const total = portfolioValue(portfolio, prices)
-  const empty = !(portfolio.fixedIncome.amount > 0) && portfolio.holdings.every((h) => h.quantity <= 0)
-  const missingPrice = portfolio.holdings.some((h) => h.quantity > 0 && !Number.isFinite(prices[h.symbol]))
-  const split = allocation(portfolio, prices)
-  const target = settings.targetAllocation
+  const sums = totals(positions, prices)
+  const missingPrice = sums.missing.length > 0
+  const target = resolveTargets(settings)
+  // Os maiores ativos com cotação; enquanto não há preço, vale a ordem do cadastro.
+  const top = positions
+    .filter(isPriced)
+    .map((p) => ({ key: priceKey(p), label: labelOf(p), value: positionValue(p, prices) ?? 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, TOP)
+  const shown = CLASSES.filter((c) => sums.byClass[c.id] > 0)
 
   function allocationNote(): string | null {
-    if (empty) return 'Toque em Editar carteira para informar suas quantidades.'
+    if (positions.length === 0) return 'Toque em Editar carteira para cadastrar seus investimentos.'
     if (missingPrice) return 'A divisão aparece quando os preços carregarem.'
     return null
   }
@@ -59,11 +63,11 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
         </p>
       )}
       <div className="metrics">
-        {SYMBOLS.map((s) => {
-          const q = quotes.find((x) => x.symbol === s)
+        {top.map((a) => {
+          const q = quotes.find((x) => x.symbol === a.key)
           return (
-            <div className="metric" key={s}>
-              <span className="muted">{s}</span>
+            <div className="metric" key={a.key}>
+              <span className="muted">{a.label}</span>
               <b className="num">{q ? money(q.price) : '—'}</b>
               {q && <span className={`num ${q.changePct >= 0 ? 'up' : 'dn'}`}>{pct(q.changePct)}</span>}
             </div>
@@ -71,8 +75,8 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
         })}
         <div className="metric">
           <span className="muted">Carteira</span>
-          <b className="num">{missingPrice ? '—' : money(total)}</b>
-          {!missingPrice && total > 0 && <span className="muted">{percent(split.fixedIncome)} em renda fixa</span>}
+          <b className="num">{missingPrice ? '—' : money(sums.total)}</b>
+          {!missingPrice && sums.total > 0 && <span className="muted">{percent(sums.byClass['renda-fixa'] / sums.total)} em renda fixa</span>}
         </div>
       </div>
 
@@ -90,17 +94,17 @@ export function HomePage({ makePrices, news, now = () => new Date(), store = loc
           {note ? (
             <p className="muted">{note}</p>
           ) : (
-            PARTS.map(([key, label]) => (
-              <div className="alloc" key={key}>
+            shown.map((c) => (
+              <div className="alloc" key={c.id}>
                 <div className="alloc-row">
-                  <span>{label}</span>
+                  <span>{c.label}</span>
                   <span className="num">
-                    {percent(split[key])}
-                    {target ? ` · meta ${percent(target[key])}` : ''}
+                    {percent(sums.byClass[c.id] / sums.total)}
+                    {target ? ` · meta ${percent(target[c.id])}` : ''}
                   </span>
                 </div>
                 <div className="bar" aria-hidden="true">
-                  <i style={{ width: percent(split[key]) }} />
+                  <i style={{ width: percent(sums.byClass[c.id] / sums.total) }} />
                 </div>
               </div>
             ))
