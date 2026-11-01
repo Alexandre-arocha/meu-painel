@@ -1,5 +1,5 @@
 import type { Point, Quote } from '../data/prices'
-import type { Allocation } from './portfolio'
+import { CLASSES, type ClassTargets, type ClassValues } from './portfolio'
 
 // Contas do motor quantitativo: descrevem o passado e fazem contas com a meta. Não preveem preço.
 
@@ -117,31 +117,12 @@ export function portfolioRisk(stocks: { value: number; returns: number[] }[], fi
   return { total, annualVol: sd * Math.sqrt(TRADING_DAYS), var95: 1.645 * sd * total }
 }
 
-export type Split = {
-  BBAS3: { shares: number; value: number }
-  B3SA3: { shares: number; value: number }
-  fixedIncome: number
-}
-
-// Divide o aporte pelo que falta para cada parte chegar à meta. Ações em quantidade inteira; o resto vai para a renda fixa.
-export function splitContribution(
-  amount: number,
-  currentValues: Allocation,
-  target: Allocation,
-  prices: { BBAS3?: number; B3SA3?: number },
-): Split {
-  const total = currentValues.fixedIncome + currentValues.BBAS3 + currentValues.B3SA3 + amount
-  const need = (k: keyof Allocation) => Math.max(0, target[k] * total - currentValues[k])
-  const sumNeed = need('fixedIncome') + need('BBAS3') + need('B3SA3')
-  const stock = (k: 'BBAS3' | 'B3SA3') => {
-    const price = prices[k] ?? 0
-    const part = sumNeed > 0 ? (amount * need(k)) / sumNeed : 0
-    const shares = price > 0 ? Math.floor(part / price) : 0
-    return { shares, value: shares * price }
-  }
-  const BBAS3 = stock('BBAS3')
-  const B3SA3 = stock('B3SA3')
-  return { BBAS3, B3SA3, fixedIncome: amount - BBAS3.value - B3SA3.value }
+// Divide o aporte pelo que falta para cada classe chegar à meta. A escolha do ativo dentro da classe fica com quem investe.
+export function splitByClass(amount: number, current: ClassValues, target: ClassTargets): ClassValues {
+  const total = Object.values(current).reduce((a, b) => a + b, 0) + amount
+  const need = CLASSES.map(({ id }) => [id, Math.max(0, target[id] * total - current[id])] as const)
+  const sumNeed = need.reduce((a, [, n]) => a + n, 0)
+  return Object.fromEntries(need.map(([id, n]) => [id, sumNeed > 0 ? (amount * n) / sumNeed : 0])) as ClassValues
 }
 
 export function projectFixedIncome(amount: number, ratePctYear: number, months = 12): number {
@@ -165,6 +146,36 @@ export function withLivePrice(points: Point[], live?: Pick<Quote, 'price' | 'upd
 }
 
 // Fechamentos de cada série só nos dias em que todas negociaram, para comparar dia com dia.
+const MAX_POINTS = 2600 // cerca de 10 anos de pregões
+
+// Junta fechamentos novos aos guardados pelo dia do pregão: o novo vale mais.
+export function mergeSeries(old: Point[], fresh: Point[]): Point[] {
+  const byDay = new Map(old.map((x) => [tradingDay(x.t), x]))
+  for (const x of fresh) byDay.set(tradingDay(x.t), x)
+  return [...byDay.values()].sort((a, b) => a.t.localeCompare(b.t)).slice(-MAX_POINTS)
+}
+
+// Os últimos meses da série, contados a partir do último ponto.
+export function lastMonths(points: Point[], months: number): Point[] {
+  const end = points[points.length - 1]
+  if (!end) return []
+  const from = new Date(end.t)
+  from.setUTCMonth(from.getUTCMonth() - months)
+  return points.filter((x) => Date.parse(x.t) >= from.getTime())
+}
+
+// Série em dólar em reais, pelo dólar do mesmo dia; sem cotação no dia, vale a do dia anterior. As duas vêm em ordem.
+export function inBrl(points: Point[], usd: Point[]): Point[] {
+  const out: Point[] = []
+  let j = -1
+  for (const x of points) {
+    const day = tradingDay(x.t)
+    while (j + 1 < usd.length && tradingDay(usd[j + 1].t) <= day) j++
+    if (j >= 0) out.push({ t: x.t, p: x.p * usd[j].p })
+  }
+  return out
+}
+
 export function alignByDay(list: Point[][]): number[][] {
   const byDay = list.map((points) => new Map(points.map((x) => [tradingDay(x.t), x.p])))
   const days = [...(byDay[0]?.keys() ?? [])].filter((d) => byDay.every((m) => m.has(d)))

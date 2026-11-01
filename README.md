@@ -4,10 +4,14 @@ Um lugar só para acompanhar investimentos, notícias e agenda.
 
 ## O que tem
 
-- **Início:** a tela única para usar no dia a dia. No topo ficam a data, os preços de BBAS3 e B3SA3 e o total da carteira. Logo abaixo vêm o feed de notícias com filtro por tema, a divisão da carteira contra a meta, a agenda de hoje e a próxima data importante. No celular, tudo vira uma coluna.
-- **Investimentos:** carteira (BBAS3, B3SA3 e renda fixa), preço do dia, notícias com tom, sinal de apoio e divisão atual contra a meta.
+- **Início:** a tela única para usar no dia a dia. No topo ficam a data, os preços dos três maiores ativos com cotação e o total da carteira. Logo abaixo vêm o feed de notícias com filtro por tema, a divisão da carteira por classe contra a meta, a agenda de hoje e a próxima data importante. No celular, tudo vira uma coluna.
+- **Investimentos:** cadastro manual de qualquer investimento.
+  - **Com cotação automática:** ações, FIIs, ETFs e BDRs da B3; ações e ETFs dos EUA, em reais pelo dólar do dia; criptomoedas; dólar e outras moedas. O código é conferido antes de salvar.
+  - **Com valor digitado:** renda fixa (Tesouro Selic, IPCA+ e Prefixado, CDB, LCI, LCA, debênture, CRI/CRA e poupança, com índice, taxa e vencimento), fundos e previdência (PGBL ou VGBL).
+  - **Na tela:** a lista por classe com o valor e a variação do dia; o motor quantitativo de cada ativo com cotação, com o sinal das notícias; o risco da carteira; o simulador de aportes; e a divisão pelas 8 classes contra a meta.
+  - **Carteira antiga:** BBAS3, B3SA3 e a renda fixa da versão anterior entram sozinhas na lista nova, uma vez.
 - **Agenda:** plano do dia montado pela sua rotina (notícias antes do trabalho e o trabalho), calendário navegável (toque num dia para ver o plano dele), compromissos com duração e repetição semanal (ex.: academia toda segunda e quarta) e datas importantes com contagem regressiva para provas e eventos de mercado.
-- **Notícias:** feed com foto de 15 fontes do Brasil e do mundo (g1, InfoMoney, TecMundo, BBC, The Guardian, The New York Times, Le Monde, El País, Der Spiegel e The Verge), com os temas Mercado, Mundo, Política, Tecnologia e Seus ativos (notícias que citam Banco do Brasil ou B3). As notícias de fora são traduzidas para o português pelo DeepL; sem tradução, aparecem no original com a língua indicada. Tocar numa notícia abre a matéria em nova aba. Sem conexão, mostra as últimas notícias salvas.
+- **Notícias:** feed com foto de 15 fontes do Brasil e do mundo (g1, InfoMoney, TecMundo, BBC, The Guardian, The New York Times, Le Monde, El País, Der Spiegel e The Verge), com os temas Mercado, Mundo, Política, Tecnologia e Seus ativos (notícias que citam os códigos e os nomes da sua carteira). As notícias de fora são traduzidas para o português pelo DeepL; sem tradução, aparecem no original com a língua indicada. Tocar numa notícia abre a matéria em nova aba. Sem conexão, mostra as últimas notícias salvas.
 
 Tudo fica salvo só no seu navegador (localStorage). Funciona no celular e no computador e pode ser instalado como app (PWA).
 
@@ -18,7 +22,7 @@ npm install
 npm run dev
 ```
 
-Abra o endereço que aparecer no terminal. Para ver os preços, crie um token gratuito em brapi.dev e cole na aba Investimentos, seção Configurações. Para traduzir as notícias de fora também em desenvolvimento, crie um arquivo `.env.local` (fica fora do Git) com `DEEPL_API_KEY=` e a sua chave.
+Abra o endereço que aparecer no terminal. Para ver os preços da B3, crie um token gratuito em brapi.dev e cole na aba Investimentos, seção Configurações. Os preços dos EUA, das criptos e das moedas não pedem token. Para traduzir as notícias de fora também em desenvolvimento, crie um arquivo `.env.local` (fica fora do Git) com `DEEPL_API_KEY=` e a sua chave.
 
 Testes: `npm test`. Build: `npm run build`.
 
@@ -39,6 +43,11 @@ Passos que só o dono faz (senhas e tokens nunca vão para o código):
 - O tom das notícias usa palavras-chave e marca a maioria como neutra.
 - Tradução: o plano grátis do DeepL dá 500 mil letras por mês. O app traduz só as manchetes que estão na tela e guarda as traduções no aparelho; se a cota acabar, as notícias aparecem no original até o mês virar.
 - O aviso de dado velho não conhece os feriados da B3.
+- Preços: a B3 vem da brapi, com cota grátis de 15 mil chamadas por mês. O app atualiza de 15 em 15 minutos, só com a aba visível, e só chama a brapi de novo com o pregão aberto.
+- Os EUA e o histórico de 5 anos vêm do Yahoo, pelo servidor. O Yahoo não é oficial e pode mudar ou bloquear. Se isso acontecer, o histórico guardado continua, e a brapi, a CoinGecko e a AwesomeAPI completam o que der.
+- Cripto vem da CoinGecko e moedas da AwesomeAPI. Se uma fonte falhar, fica o último preço dela, marcado como velho.
+- A variação do dia de um ativo dos EUA, em reais, junta a do ativo e a do dólar.
+- Renda fixa, fundos e previdência valem o que você digitar.
 
 ## Aviso
 

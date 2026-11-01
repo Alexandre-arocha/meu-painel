@@ -3,6 +3,7 @@ import {
   handleBrapi,
   handleData,
   handleFeed,
+  handleHistory,
   handleLogin,
   handleLogout,
   handleNews,
@@ -195,4 +196,69 @@ test('cota do DeepL acabada e chave inválida viram mensagens claras', async () 
 test('brapi sem BRAPI_TOKEN devolve 503', async () => {
   const res = await handleBrapi(await withSession('https://x/api/brapi/quote?symbols=BBAS3'), 'quote', deps({ env: { APP_PASSWORD: SECRET } }))
   expect(res.status).toBe(503)
+})
+
+// Resposta do Yahoo como ela vem: o dia sem pregão chega com null.
+const DAYS = [1793106000, 1793192400, 1793278800]
+const yahoo = (meta: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    chart: {
+      result: [
+        {
+          meta: { currency: 'BRL', regularMarketPrice: 16.5, regularMarketChangePercent: 0.61, regularMarketTime: 1793390742, longName: 'Banco do Brasil S.A.', ...meta },
+          timestamp: DAYS,
+          indicators: { quote: [{ close: [16.1, null, 16.5] }], adjclose: [{ adjclose: [15.9, null, 16.5] }] },
+        },
+      ],
+      error: null,
+    },
+  })
+const iso = (s: number) => new Date(s * 1000).toISOString()
+
+test('histórico exige sessão, aceita só símbolo e período da lista e devolve os fechamentos ajustados', async () => {
+  const urls: string[] = []
+  const fetchFn = (async (url: string) => {
+    urls.push(String(url))
+    return new Response(yahoo(), { status: 200 })
+  }) as unknown as typeof fetch
+  expect((await handleHistory(new Request('https://x/api/history?symbol=BBAS3.SA&range=5y'), deps({ fetchFn }))).status).toBe(401)
+  for (const bad of ['symbol=BBAS3.SA&range=1mo', 'symbol=..%2Fx&range=5y', 'symbol=&range=5y', `symbol=${'A'.repeat(21)}&range=5y`]) {
+    expect((await handleHistory(await withSession(`https://x/api/history?${bad}`), deps({ fetchFn }))).status).toBe(400)
+  }
+  const res = await handleHistory(await withSession('https://x/api/history?symbol=BBAS3.SA&range=5y'), deps({ fetchFn }))
+  expect(res.status).toBe(200)
+  expect(await res.json()).toEqual({
+    currency: 'BRL',
+    price: 16.5,
+    changePct: 0.61,
+    updatedAt: iso(1793390742),
+    name: 'Banco do Brasil S.A.',
+    t: [iso(DAYS[0]), iso(DAYS[2])],
+    c: [15.9, 16.5],
+  })
+  await handleHistory(await withSession('https://x/api/history?symbol=%5EBVSP&range=1y'), deps({ fetchFn }))
+  await handleHistory(await withSession('https://x/api/history?symbol=USDBRL%3DX&range=5d'), deps({ fetchFn }))
+  expect(urls).toEqual([
+    'https://query1.finance.yahoo.com/v8/finance/chart/BBAS3.SA?range=5y&interval=1d&events=div%2Csplit',
+    'https://query1.finance.yahoo.com/v8/finance/chart/%5EBVSP?range=1y&interval=1d&events=div%2Csplit',
+    'https://query1.finance.yahoo.com/v8/finance/chart/USDBRL%3DX?range=5d&interval=1d&events=div%2Csplit',
+  ])
+})
+
+test('sem a variação do dia no Yahoo, o histórico calcula pelos dois últimos fechamentos', async () => {
+  const fetchFn = (async () => new Response(yahoo({ regularMarketChangePercent: undefined }), { status: 200 })) as unknown as typeof fetch
+  const body = await (await handleHistory(await withSession('https://x/api/history?symbol=BBAS3.SA&range=5d'), deps({ fetchFn }))).json()
+  expect(body.changePct).toBeCloseTo((16.5 / 15.9 - 1) * 100)
+})
+
+test('histórico de símbolo desconhecido vira 404; Yahoo fora do ar ou resposta estranha vira 502', async () => {
+  const answer = (status: number, body = '{}') => (async () => new Response(body, { status })) as unknown as typeof fetch
+  const url = 'https://x/api/history?symbol=ZZZZQQ&range=5d'
+  expect((await handleHistory(await withSession(url), deps({ fetchFn: answer(404, '{"chart":{"result":null}}') }))).status).toBe(404)
+  expect((await handleHistory(await withSession(url), deps({ fetchFn: answer(500) }))).status).toBe(502)
+  expect((await handleHistory(await withSession(url), deps({ fetchFn: answer(200, '{"chart":{"result":[{"meta":{}}]}}') }))).status).toBe(502)
+  const offline = (async () => {
+    throw new Error('rede')
+  }) as unknown as typeof fetch
+  expect((await handleHistory(await withSession(url), deps({ fetchFn: offline }))).status).toBe(502)
 })

@@ -3,17 +3,21 @@ import {
   annualVol,
   correlation,
   dailyReturns,
+  inBrl,
+  lastMonths,
   maCrossBacktest,
   maxDrawdown,
+  mergeSeries,
   portfolioRisk,
   projectFixedIncome,
   rsi,
   sma,
-  splitContribution,
+  splitByClass,
   stdev,
   tradingDay,
   withLivePrice,
 } from './quant'
+import { zeroClasses } from './portfolio'
 
 test('sma calcula a média móvel e deixa null antes de ter dados suficientes', () => {
   expect(sma([1, 2, 3, 4, 5], 3)).toEqual([null, null, 2, 3, 4])
@@ -65,16 +69,50 @@ test('portfolioRisk calcula a volatilidade e a queda possível num dia ruim (VaR
   expect(risk.annualVol).toBeCloseTo(0.0917, 3)
 })
 
-test('splitContribution divide o aporte para chegar perto da meta, em ações inteiras', () => {
-  const s = splitContribution(
-    1000,
-    { fixedIncome: 10000, BBAS3: 1646, B3SA3: 2840 },
-    { fixedIncome: 0.6, BBAS3: 0.2, B3SA3: 0.2 },
-    { BBAS3: 16.46, B3SA3: 14.2 },
-  )
-  expect(s.BBAS3.shares).toBe(51)
-  expect(s.B3SA3.shares).toBe(10)
-  expect(s.fixedIncome).toBeCloseTo(18.54, 2)
+test('splitByClass divide o aporte pelo que falta para cada classe chegar à meta', () => {
+  const current = { ...zeroClasses(), 'renda-fixa': 6000, acoes: 3000, exterior: 1000 }
+  const target = { ...zeroClasses(), 'renda-fixa': 0.5, acoes: 0.3, exterior: 0.2 }
+  // Com 2000, a carteira vai a 12000: falta 0 em renda fixa, 600 em ações e 1400 no exterior.
+  const s = splitByClass(2000, current, target)
+  expect(s['renda-fixa']).toBeCloseTo(0)
+  expect(s.acoes).toBeCloseTo(600)
+  expect(s.exterior).toBeCloseTo(1400)
+  expect(Object.values(s).reduce((a, b) => a + b, 0)).toBeCloseTo(2000)
+  expect(splitByClass(0, current, target).acoes).toBe(0)
+})
+
+test('mergeSeries junta os dias novos aos guardados, troca o dia repetido e mantém a ordem', () => {
+  const old = [
+    { t: '2026-10-28T13:00:00.000Z', p: 10 },
+    { t: '2026-10-29T13:00:00.000Z', p: 11 },
+  ]
+  const fresh = [
+    { t: '2026-10-29T20:00:00.000Z', p: 11.5 },
+    { t: '2026-10-30T13:00:00.000Z', p: 12 },
+  ]
+  expect(mergeSeries(old, fresh)).toEqual([old[0], fresh[0], fresh[1]])
+  expect(mergeSeries([], fresh)).toEqual(fresh)
+})
+
+test('lastMonths corta a série nos últimos meses contados do último ponto', () => {
+  const pts = ['2026-06-30', '2026-07-31', '2026-08-01', '2026-10-31'].map((d, i) => ({ t: `${d}T13:00:00.000Z`, p: i }))
+  expect(lastMonths(pts, 3).map((x) => x.p)).toEqual([1, 2, 3])
+  expect(lastMonths([], 3)).toEqual([])
+})
+
+test('inBrl converte pelo dólar do mesmo dia ou do dia anterior e descarta o que vem antes do primeiro dólar', () => {
+  const usd = [
+    { t: '2026-10-28T15:00:00.000Z', p: 5 },
+    { t: '2026-10-30T15:00:00.000Z', p: 6 },
+  ]
+  const aapl = [
+    { t: '2026-10-27T13:30:00.000Z', p: 100 },
+    { t: '2026-10-28T13:30:00.000Z', p: 100 },
+    { t: '2026-10-29T13:30:00.000Z', p: 110 },
+    { t: '2026-10-30T13:30:00.000Z', p: 120 },
+  ]
+  expect(inBrl(aapl, usd).map((x) => x.p)).toEqual([500, 550, 720])
+  expect(inBrl(aapl, [])).toEqual([])
 })
 
 test('projectFixedIncome rende juros compostos pela taxa ao ano', () => {

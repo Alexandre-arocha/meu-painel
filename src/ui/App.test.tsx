@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { loadTheme, setWriteListener } from '../data/storage'
+import { loadTheme, savePositions, setWriteListener } from '../data/storage'
 
 const makePrices = () => ({
   async getQuotes() {
@@ -72,6 +72,8 @@ test('botão de tema troca o preto pelo branco e lembra a escolha', async () => 
 
 test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => {
   const user = userEvent.setup()
+  // Com um ativo da B3 e sem token, a página avisa o motivo de não ter preço.
+  savePositions([{ id: 'a', kind: 'acao', symbol: 'BBAS3', quantity: 1 }])
   render(<App makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(screen.getByRole('link', { name: 'Editar carteira' }))
   expect(await screen.findByText(/não é previsão garantida/i)).toBeInTheDocument()

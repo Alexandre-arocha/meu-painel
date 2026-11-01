@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NewsPage } from './NewsPage'
 import type { NewsItem } from '../data/news'
-import { loadTranslations, saveNews } from '../data/storage'
+import { loadTranslations, saveNews, savePositions } from '../data/storage'
 import type { Translator } from '../data/translate'
 
 beforeEach(() => localStorage.clear())
@@ -45,8 +45,12 @@ test('notícia com link perigoso aparece sem link', async () => {
   expect(screen.queryByRole('link', { name: 'Golpe' })).toBeNull()
 })
 
-test('filtro Seus ativos mostra só notícias que citam BB ou B3', async () => {
+test('filtro Seus ativos mostra só notícias que citam um ativo da carteira', async () => {
   const user = userEvent.setup()
+  savePositions([
+    { id: 'a', kind: 'acao', symbol: 'BBAS3', quantity: 1, name: 'Banco do Brasil' },
+    { id: 'b', kind: 'acao', symbol: 'B3SA3', quantity: 1, name: 'B3' },
+  ])
   const news = {
     fetchNews: async () => [item('Banco do Brasil anuncia dividendos', 'Mercado'), item('Chip novo', 'Tecnologia')],
   }

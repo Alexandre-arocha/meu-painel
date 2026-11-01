@@ -20,13 +20,17 @@ export interface PriceProvider {
 const BASE = 'https://brapi.dev/api/v2/stocks'
 const STALE_AFTER_MIN = 15
 
+// Pregão da B3: segunda a sexta, das 10h às 17h30 de Brasília.
 // shortcut: não conhece feriados de mercado, só fim de semana e horário; incluir calendário B3 se atrapalhar.
-export function isStale(updatedAt: string, now: Date): boolean {
+export function marketOpen(now: Date): boolean {
   const brt = new Date(now.getTime() - 3 * 3600_000) // Brasília é UTC-3 o ano todo
   const day = brt.getUTCDay()
   const minutes = brt.getUTCHours() * 60 + brt.getUTCMinutes()
-  const marketOpen = day >= 1 && day <= 5 && minutes >= 10 * 60 && minutes <= 17 * 60 + 30
-  if (!marketOpen) return false
+  return day >= 1 && day <= 5 && minutes >= 10 * 60 && minutes <= 17 * 60 + 30
+}
+
+export function isStale(updatedAt: string, now: Date): boolean {
+  if (!marketOpen(now)) return false
   return now.getTime() - new Date(updatedAt).getTime() > STALE_AFTER_MIN * 60_000
 }
 

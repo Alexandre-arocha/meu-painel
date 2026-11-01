@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createBrapiProvider, createProxyPriceProvider, type PriceProvider } from '../data/prices'
 import { FEED_IDS } from '../data/feeds'
-import { PORTFOLIO_QUERIES, createGoogleNewsSource, createNewsSource, type NewsSource } from '../data/news'
-import { loadTheme, saveTheme, setWriteListener, type Theme } from '../data/storage'
+import { assetQueries, createGoogleNewsSource, createNewsSource, portfolioQueries, type NewsSource } from '../data/news'
+import { loadPositions, loadTheme, saveTheme, setWriteListener, type Theme } from '../data/storage'
 import { lexiconClassifier } from '../domain/tone'
 import { startSync } from '../sync'
 import { AgendaPage } from './AgendaPage'
@@ -20,15 +20,17 @@ type Props = {
 }
 
 // Em desenvolvimento: brapi direto, Google News pelo proxy do Vite e os feeds pelo plugin do Vite. Publicado: tudo pelas funções /api.
-const general = { feeds: FEED_IDS, queries: PORTFOLIO_QUERIES }
+// As buscas dos seus ativos saem da carteira na hora de cada busca: um ativo novo já entra na próxima.
+const assetNews = () => assetQueries(loadPositions())
+const general = { feeds: FEED_IDS, queries: () => portfolioQueries(loadPositions()) }
 const local = {
   makePrices: (token: string | undefined) => createBrapiProvider(token),
-  news: createGoogleNewsSource(undefined, lexiconClassifier),
+  news: createGoogleNewsSource(undefined, lexiconClassifier, '/news-proxy', assetNews),
   generalNews: createNewsSource(undefined, lexiconClassifier, general),
 }
 const published = {
   makePrices: () => createProxyPriceProvider(),
-  news: createGoogleNewsSource(undefined, lexiconClassifier, '/api/news'),
+  news: createGoogleNewsSource(undefined, lexiconClassifier, '/api/news', assetNews),
   generalNews: createNewsSource(undefined, lexiconClassifier, { ...general, googleBase: '/api/news' }),
 }
 

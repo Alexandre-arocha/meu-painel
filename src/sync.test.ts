@@ -1,5 +1,5 @@
 import { createSync, pullAll, startSync } from './sync'
-import { savePortfolio, saveRoutine, setWriteListener } from './data/storage'
+import { savePositions, saveRoutine, setWriteListener } from './data/storage'
 import { DEFAULT_ROUTINE } from './domain/agenda'
 
 type Call = { url: string; method: string; body?: unknown }
@@ -95,7 +95,7 @@ test('startSync com banco vazio envia os dados locais e depois cada gravação',
   const api = fakeApi({})
   await startSync(api.fetchFn, localStorage, new EventTarget())
   expect(putKeys(api.calls)).toEqual(['painel:v1:events'])
-  savePortfolio({ holdings: [], fixedIncome: { amount: 5 } })
+  savePositions([{ id: 'a', kind: 'renda-fixa', name: 'CDB', amount: 5, subtype: 'cdb' }])
   await new Promise((r) => setTimeout(r, 0))
-  expect(putKeys(api.calls)).toContain('painel:v1:portfolio')
+  expect(putKeys(api.calls)).toContain('painel:v1:positions')
 })

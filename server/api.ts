@@ -21,6 +21,7 @@ const json = (data: unknown, status = 200) =>
 const empty = (status: number, headers: Record<string, string> = {}) => new Response(null, { status, headers: { ...NO_STORE, ...headers } })
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 const noSession = () => json({ error: 'sem sessão' }, 401)
+const UA = { 'user-agent': 'Mozilla/5.0 (compatible; MeuPainel/1.0)' }
 
 async function authorized(req: Request, d: Deps): Promise<boolean> {
   const secret = d.env.APP_PASSWORD
@@ -99,10 +100,7 @@ export async function handleFeed(req: Request, d: Deps): Promise<Response> {
 export async function feedResponse(id: string, fetchFn: typeof fetch): Promise<Response> {
   if (!isFeedId(id)) return json({ error: 'feed desconhecido' }, 404)
   try {
-    const res = await fetchFn(FEEDS[id].url, {
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; MeuPainel/1.0)' },
-      signal: AbortSignal.timeout(10_000),
-    })
+    const res = await fetchFn(FEEDS[id].url, { headers: UA, signal: AbortSignal.timeout(10_000) })
     if (!res.ok) return json({ error: `feed: ${res.status}` }, 502)
     return new Response(await res.text(), {
       status: 200,
@@ -110,6 +108,77 @@ export async function feedResponse(id: string, fetchFn: typeof fetch): Promise<R
     })
   } catch {
     return json({ error: 'feed indisponível' }, 502)
+  }
+}
+
+const HISTORY_RANGES = ['5d', '3mo', '1y', '5y', '10y']
+// Letras, números e . ^ = -: cobre PETR4.SA, AAPL, BRK-B, ^BVSP e USDBRL=X, e nada que mude o caminho da URL.
+const HISTORY_SYMBOL = /^[A-Za-z0-9.^=-]{1,20}$/
+
+export async function handleHistory(req: Request, d: Deps): Promise<Response> {
+  if (!(await authorized(req, d))) return noSession()
+  const q = new URL(req.url).searchParams
+  return historyResponse(q.get('symbol') ?? '', q.get('range') ?? '', d.fetchFn ?? fetch)
+}
+
+type YahooChart = {
+  chart?: {
+    result?:
+      | {
+          meta?: {
+            currency?: string
+            regularMarketPrice?: number
+            regularMarketChangePercent?: number
+            regularMarketTime?: number
+            longName?: string
+            shortName?: string
+          }
+          timestamp?: number[]
+          indicators?: { quote?: { close?: (number | null)[] }[]; adjclose?: { adjclose?: (number | null)[] }[] }
+        }[]
+      | null
+  }
+}
+
+// Yahoo não oficial, só pelo servidor: o navegador não pode ler o Yahoo direto. Fechamento ajustado por proventos.
+// Sem checagem de sessão: o servidor de desenvolvimento do Vite também usa.
+export async function historyResponse(symbol: string, range: string, fetchFn: typeof fetch): Promise<Response> {
+  if (!HISTORY_SYMBOL.test(symbol) || !HISTORY_RANGES.includes(range)) return json({ error: 'pedido inválido' }, 400)
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d&events=div%2Csplit`
+    const res = await fetchFn(url, { headers: UA, signal: AbortSignal.timeout(10_000) })
+    if (res.status === 404) return json({ error: 'ativo não encontrado' }, 404)
+    if (!res.ok) return json({ error: `Yahoo: ${res.status}` }, 502)
+    const r = ((await res.json()) as YahooChart).chart?.result?.[0]
+    const meta = r?.meta
+    if (!r || typeof meta?.regularMarketPrice !== 'number') return json({ error: 'resposta inesperada do Yahoo' }, 502)
+    const close = r.indicators?.quote?.[0]?.close ?? []
+    const adjusted = r.indicators?.adjclose?.[0]?.adjclose ?? close
+    const t: string[] = []
+    const c: number[] = []
+    for (const [i, seconds] of (r.timestamp ?? []).entries()) {
+      const v = adjusted[i]
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        t.push(new Date(seconds * 1000).toISOString())
+        c.push(v)
+      }
+    }
+    const n = c.length
+    const body = {
+      currency: meta.currency ?? null,
+      price: meta.regularMarketPrice,
+      changePct: meta.regularMarketChangePercent ?? (n > 1 ? (c[n - 1] / c[n - 2] - 1) * 100 : null),
+      updatedAt: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : null,
+      name: meta.longName ?? meta.shortName ?? null,
+      t,
+      c,
+    }
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'cache-control': 'private, max-age=300' },
+    })
+  } catch {
+    return json({ error: 'Yahoo indisponível' }, 502)
   }
 }
 
