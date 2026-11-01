@@ -33,7 +33,7 @@ function authApi(loggedIn: boolean) {
 test('App com auth e sem sessão mostra a entrada', async () => {
   render(<App auth fetchFn={authApi(false).fetchFn} makePrices={makePrices} news={news} generalNews={news} />)
   expect(await screen.findByLabelText('Senha')).toBeInTheDocument()
-  expect(screen.queryByText('Questão do dia')).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Abrir agenda' })).toBeNull()
 })
 
 test('entrar sincroniza e mostra o Início', async () => {
@@ -42,7 +42,7 @@ test('entrar sincroniza e mostra o Início', async () => {
   render(<App auth fetchFn={api.fetchFn} makePrices={makePrices} news={news} generalNews={news} />)
   await user.type(await screen.findByLabelText('Senha'), 'qualquer')
   await user.click(screen.getByRole('button', { name: 'Entrar' }))
-  expect(await screen.findByText('Questão do dia')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { level: 1, name: 'Meu painel' })).toBeInTheDocument()
   expect(api.calls).toContain('GET /api/data')
 })
 
@@ -56,7 +56,7 @@ test('Sair volta para a entrada', async () => {
 test('App abre só na tela única, sem barra de abas', () => {
   render(<App makePrices={makePrices} news={news} generalNews={news} />)
   expect(screen.getByRole('heading', { level: 1, name: 'Meu painel' })).toBeInTheDocument()
-  expect(screen.getByText('Questão do dia')).toBeInTheDocument()
+  expect(screen.queryByText('Questão do dia')).toBeNull()
   expect(screen.queryByRole('navigation')).toBeNull()
 })
 
@@ -77,7 +77,7 @@ test('navegar para Investimentos mostra o aviso de sinal de apoio', async () => 
   expect(await screen.findByText(/não é previsão garantida/i)).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toBeInTheDocument()
   await user.click(screen.getByRole('link', { name: 'Início' }))
-  expect(await screen.findByText('Questão do dia')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { level: 1, name: 'Meu painel' })).toBeInTheDocument()
 })
 
 test('navegar para Agenda mostra o plano de hoje', async () => {
@@ -92,12 +92,13 @@ test('navegar para Notícias mostra os filtros de tema', async () => {
   render(<App makePrices={makePrices} news={news} generalNews={news} />)
   await user.click(screen.getByRole('link', { name: 'Ver todas as notícias' }))
   expect(await screen.findByRole('heading', { level: 1, name: 'Notícias' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Concursos' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Tecnologia' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Concursos' })).toBeNull()
 })
 
-test('navegar para Estudos mostra a questão', async () => {
-  const user = userEvent.setup()
+test('o endereço antigo de Estudos cai no Início', () => {
+  window.location.hash = '#/estudos'
   render(<App makePrices={makePrices} news={news} generalNews={news} />)
-  await user.click(screen.getByRole('link', { name: 'Abrir estudos' }))
-  expect(await screen.findByRole('heading', { name: 'Questão' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 1, name: 'Meu painel' })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Abrir estudos' })).toBeNull()
 })

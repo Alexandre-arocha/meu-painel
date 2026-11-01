@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HomePage } from './HomePage'
-import { loadAttempts, saveEvents, savePortfolio } from '../data/storage'
+import { saveEvents, savePortfolio } from '../data/storage'
 import type { NewsItem, NewsSource } from '../data/news'
 import type { PriceProvider, Quote } from '../data/prices'
 
@@ -35,7 +35,7 @@ const item = (title: string, tags: string[]): NewsItem => ({
 const feed = (items: NewsItem[]): NewsSource => ({ fetchNews: async () => items })
 
 function renderHome(opts: { makePrices?: () => PriceProvider; news?: NewsSource } = {}) {
-  return render(<HomePage makePrices={opts.makePrices ?? noPrices} news={opts.news ?? feed([])} now={now} rand={() => 0} />)
+  return render(<HomePage makePrices={opts.makePrices ?? noPrices} news={opts.news ?? feed([])} now={now} />)
 }
 
 test('Início mostra a data, os preços e o total da carteira', async () => {
@@ -61,21 +61,17 @@ test('Início sem preço mostra traço e o motivo, sem quebrar', async () => {
 
 test('Início mostra o feed de notícias com filtro por tema', async () => {
   const user = userEvent.setup()
-  renderHome({ news: feed([item('Ibovespa cai', ['Mercado']), item('Edital de TI', ['Concursos'])]) })
+  renderHome({ news: feed([item('Ibovespa cai', ['Mercado']), item('Chip novo', ['Tecnologia'])]) })
   expect(await screen.findByText('Ibovespa cai')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Concursos' }))
+  await user.click(screen.getByRole('button', { name: 'Tecnologia' }))
   expect(screen.queryByText('Ibovespa cai')).toBeNull()
-  expect(screen.getByText('Edital de TI')).toBeInTheDocument()
+  expect(screen.getByText('Chip novo')).toBeInTheDocument()
 })
 
-test('responder a questão do dia grava a tentativa e conta na meta', async () => {
-  const user = userEvent.setup()
+test('o Início não tem mais questão nem meta de estudo', () => {
   renderHome()
-  expect(screen.getByText('0 de 20')).toBeInTheDocument()
-  await user.click(screen.getAllByRole('button', { name: /^[A-J]\) / })[0])
-  expect(screen.getByText(/^(Correto\.|Errado\.)/)).toBeInTheDocument()
-  expect(loadAttempts(localStorage)).toHaveLength(1)
-  expect(screen.getByText('1 de 20')).toBeInTheDocument()
+  expect(screen.queryByText('Questão do dia')).toBeNull()
+  expect(screen.queryByText('Estudo hoje')).toBeNull()
 })
 
 test('Início mostra a próxima data importante com a contagem', () => {

@@ -28,8 +28,6 @@ export const INVESTMENT_QUERIES: NewsQuery[] = [
 // Feed geral da aba Notícias; as tags viram os filtros de tema.
 export const GENERAL_QUERIES: NewsQuery[] = [
   { q: 'mercado financeiro Ibovespa', tag: 'Mercado' },
-  { q: 'concurso público edital', tag: 'Concursos' },
-  { q: 'concurso militar edital', tag: 'Concursos' },
   { q: 'tecnologia', tag: 'Tecnologia' },
 ]
 

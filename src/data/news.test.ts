@@ -90,7 +90,7 @@ test('markPortfolio marca notícias que citam BB, BBAS3, B3 ou B3SA3', () => {
   expect(out.map((i) => i.tags)).toEqual([['Mercado', 'Carteira'], [], ['Carteira'], ['Carteira']])
 })
 
-test('fonte geral busca mercado, concursos e tecnologia', async () => {
+test('fonte geral busca mercado e tecnologia, sem concursos', async () => {
   const urls: string[] = []
   const f = (async (url: string) => {
     urls.push(String(url))
@@ -98,8 +98,8 @@ test('fonte geral busca mercado, concursos e tecnologia', async () => {
   }) as unknown as typeof fetch
   await createGoogleNewsSource(f, lexiconClassifier, '/news-proxy', GENERAL_QUERIES).fetchNews()
   expect(urls).toHaveLength(GENERAL_QUERIES.length)
-  expect(urls.some((u) => u.includes('concurso'))).toBe(true)
-  expect(new Set(GENERAL_QUERIES.map((q) => q.tag))).toEqual(new Set(['Mercado', 'Concursos', 'Tecnologia']))
+  expect(urls.some((u) => u.includes('concurso'))).toBe(false)
+  expect(new Set(GENERAL_QUERIES.map((q) => q.tag))).toEqual(new Set(['Mercado', 'Tecnologia']))
 })
 
 test('fonte de notícias segue com os termos que deram certo quando um falha', async () => {

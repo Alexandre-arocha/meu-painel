@@ -9,7 +9,6 @@ import { HomePage } from './HomePage'
 import { InvestmentsPage } from './InvestmentsPage'
 import { LoginPage } from './LoginPage'
 import { NewsPage } from './NewsPage'
-import { StudyPage } from './StudyPage'
 
 type Props = {
   makePrices?: (token: string | undefined) => PriceProvider
@@ -34,7 +33,6 @@ const published = {
 const TABS = [
   ['inicio', 'Início'],
   ['investimentos', 'Investimentos'],
-  ['estudos', 'Estudos'],
   ['agenda', 'Agenda'],
   ['noticias', 'Notícias'],
 ] as const
@@ -161,7 +159,6 @@ export function App({ makePrices, news, generalNews, auth = import.meta.env.PROD
       {tab === 'investimentos' && (
         <InvestmentsPage makePrices={makePrices ?? defaults.makePrices} news={news ?? defaults.news} serverPrices={auth} />
       )}
-      {tab === 'estudos' && <StudyPage />}
       {tab === 'agenda' && <AgendaPage />}
       {tab === 'noticias' && <NewsPage news={generalNews ?? defaults.generalNews} />}
     </>

@@ -4,7 +4,7 @@ import { loadNews, saveNews } from '../data/storage'
 import { dayTime, hhmm } from './format'
 import { NewsList } from './NewsList'
 
-const TOPICS = ['Todas', 'Carteira', 'Mercado', 'Concursos', 'Tecnologia']
+const TOPICS = ['Todas', 'Carteira', 'Mercado', 'Tecnologia']
 
 type Status = { kind: 'loading' } | { kind: 'fresh'; at: string } | { kind: 'saved'; at: string } | { kind: 'failed' }
 type Props = { news: NewsSource; now?: () => Date; store?: Storage; limit?: number; title?: string }

@@ -33,9 +33,19 @@ test('duração fora de 5–720 ou dia da semana inválido é descartado', () =>
 })
 
 test('rotina: salvar, carregar e voltar ao padrão se inválida', () => {
-  const r = { workStart: '09:00', workEnd: '18:00', workDays: [1, 2, 3], studyMinutes: 90 }
+  const r = { workStart: '09:00', workEnd: '18:00', workDays: [1, 2, 3] }
   saveRoutine(r)
   expect(loadRoutine()).toEqual(r)
   localStorage.setItem('painel:v1:routine', JSON.stringify({ workStart: '25:00' }))
   expect(loadRoutine()).toEqual(DEFAULT_ROUTINE)
+})
+
+test('rotina antiga com minutos de estudo carrega sem esse campo', () => {
+  localStorage.setItem('painel:v1:routine', JSON.stringify({ workStart: '09:00', workEnd: '18:00', workDays: [1, 2], studyMinutes: 90 }))
+  expect(loadRoutine()).toEqual({ workStart: '09:00', workEnd: '18:00', workDays: [1, 2] })
+})
+
+test('compromisso antigo do tipo estudo continua, agora como pessoal', () => {
+  localStorage.setItem('painel:v1:events', JSON.stringify([{ id: '1', title: 'Revisar', date: '2026-10-28', kind: 'estudo' }]))
+  expect(loadEvents()).toEqual([{ id: '1', title: 'Revisar', date: '2026-10-28', kind: 'pessoal' }])
 })

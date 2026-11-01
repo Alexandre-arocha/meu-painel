@@ -8,14 +8,20 @@ const now = () => new Date(2026, 9, 28, 9, 0) // quarta-feira
 
 beforeEach(() => localStorage.clear())
 
-test('adicionar compromisso com horário entra na lista e empurra o estudo', async () => {
+test('adicionar compromisso com horário entra na lista e no plano do dia', async () => {
   const user = userEvent.setup()
   render(<AgendaPage now={now} />)
   await user.type(screen.getByLabelText('Título'), 'Dentista')
   fireEvent.change(screen.getByLabelText('Horário (opcional)'), { target: { value: '18:00' } })
   await user.click(screen.getByRole('button', { name: 'Adicionar' }))
   expect(loadEvents()).toMatchObject([{ title: 'Dentista', date: '2026-10-28', time: '18:00' }])
-  expect(screen.getByText('19:00–20:00')).toBeInTheDocument()
+  expect(within(screen.getByRole('region', { name: 'Plano do dia' })).getByText('18:00–19:00')).toBeInTheDocument()
+})
+
+test('a agenda não tem mais estudo: nem tipo, nem minutos na rotina', () => {
+  render(<AgendaPage now={now} />)
+  expect(screen.queryByRole('option', { name: 'Estudo' })).toBeNull()
+  expect(screen.queryByLabelText('Minutos de estudo por dia')).toBeNull()
 })
 
 test('título vazio mostra erro e não salva', async () => {
@@ -26,14 +32,12 @@ test('título vazio mostra erro e não salva', async () => {
   expect(loadEvents()).toEqual([])
 })
 
-test('rotina com minutos inválidos mostra erro e não salva', async () => {
+test('rotina com horário inválido mostra erro e não salva', async () => {
   const user = userEvent.setup()
   render(<AgendaPage now={now} />)
-  const minutes = screen.getByLabelText('Minutos de estudo por dia')
-  await user.clear(minutes)
-  await user.type(minutes, 'abc')
+  fireEvent.change(screen.getByLabelText('Início do trabalho'), { target: { value: '' } })
   await user.click(screen.getByRole('button', { name: 'Salvar rotina' }))
-  expect(screen.getByText('minutos de estudo entre 0 e 600')).toBeInTheDocument()
+  expect(screen.getByText('horário de trabalho inválido')).toBeInTheDocument()
   expect(loadRoutine()).toEqual(DEFAULT_ROUTINE)
 })
 
@@ -50,7 +54,7 @@ test('clicar num dia mostra o plano daquele dia', async () => {
   await user.click(screen.getByRole('button', { name: /^31 de outubro/ }))
   const plano = screen.getByRole('region', { name: 'Plano do dia' })
   expect(within(plano).getByRole('heading', { name: 'Plano de 31/10/2026' })).toBeInTheDocument()
-  expect(within(plano).getByText('09:00–10:00')).toBeInTheDocument()
+  expect(within(plano).getByText('Nada planejado para este dia.')).toBeInTheDocument()
 })
 
 test('compromisso semanal aparece nas semanas seguintes', async () => {

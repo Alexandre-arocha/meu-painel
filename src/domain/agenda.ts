@@ -1,4 +1,4 @@
-export type EventKind = 'estudo' | 'mercado' | 'prova' | 'pessoal'
+export type EventKind = 'mercado' | 'prova' | 'pessoal'
 export type AgendaEvent = {
   id: string
   title: string
@@ -8,14 +8,13 @@ export type AgendaEvent = {
   weekdays?: number[] // repete toda semana nesses dias (0 = domingo)
   kind: EventKind
 }
-export type Routine = { workStart: string; workEnd: string; workDays: number[]; studyMinutes: number }
+export type Routine = { workStart: string; workEnd: string; workDays: number[] }
 export type Block = { start: string; end: string; title: string; kind: EventKind | 'trabalho' }
 
-export const EVENT_KINDS: EventKind[] = ['estudo', 'mercado', 'prova', 'pessoal']
-export const DEFAULT_ROUTINE: Routine = { workStart: '08:00', workEnd: '17:00', workDays: [1, 2, 3, 4, 5], studyMinutes: 60 }
+export const EVENT_KINDS: EventKind[] = ['mercado', 'prova', 'pessoal']
+export const DEFAULT_ROUTINE: Routine = { workStart: '08:00', workEnd: '17:00', workDays: [1, 2, 3, 4, 5] }
 
 const EVENT_MINUTES = 60
-const DAY_OFF_STUDY = 9 * 60
 
 export const isTime = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)
 
@@ -41,8 +40,7 @@ export function occursOn(e: AgendaEvent, date: string): boolean {
   return e.date === date
 }
 
-// Plano do dia: compromissos com horário (duração própria, 1 h se não informada), notícias antes do trabalho, trabalho e um bloco de estudo
-// 1 h depois do trabalho (9h em dia de folga), empurrado para depois de qualquer compromisso que ocupe o horário.
+// Plano do dia: compromissos com horário (duração própria, 1 h se não informada), notícias antes do trabalho e o trabalho.
 export function planDay(date: string, routine: Routine, events: AgendaEvent[]): Block[] {
   const today = events.filter((e) => occursOn(e, date))
   const blocks: Block[] = today
@@ -57,23 +55,6 @@ export function planDay(date: string, routine: Routine, events: AgendaEvent[]): 
   if (workday) {
     blocks.push({ start: toTime(toMin(routine.workStart) - 15), end: routine.workStart, title: 'Notícias do mercado', kind: 'mercado' })
     blocks.push({ start: routine.workStart, end: routine.workEnd, title: 'Trabalho', kind: 'trabalho' })
-  }
-  if (routine.studyMinutes > 0) {
-    let start = workday ? toMin(routine.workEnd) + 60 : DAY_OFF_STUDY
-    const busy = blocks.map((b) => [toMin(b.start), toMin(b.end)] as const)
-    let moved = true
-    while (moved) {
-      moved = false
-      for (const [s, e] of busy) {
-        if (start < e && start + routine.studyMinutes > s) {
-          start = e
-          moved = true
-        }
-      }
-    }
-    if (start + routine.studyMinutes <= 24 * 60) {
-      blocks.push({ start: toTime(start), end: toTime(start + routine.studyMinutes), title: 'Estudo: questões', kind: 'estudo' })
-    }
   }
   const allDay: Block[] = today.filter((e) => !e.time).map((e) => ({ start: '', end: '', title: e.title, kind: e.kind }))
   return [...allDay, ...blocks.sort((a, b) => toMin(a.start) - toMin(b.start))]

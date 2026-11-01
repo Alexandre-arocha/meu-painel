@@ -23,22 +23,24 @@ test('monthGrid de outubro de 2026 começa na quinta e tem 5 semanas', () => {
 const ev = (over: Partial<AgendaEvent>): AgendaEvent => ({ id: 'e', title: 'Evento', date: '2026-10-28', kind: 'pessoal', ...over })
 const fmt = (blocks: { start: string; end: string; title: string }[]) => blocks.map((b) => `${b.start}-${b.end} ${b.title}`)
 
-test('planDay em dia útil: notícias antes do trabalho, trabalho e estudo 1 h depois', () => {
-  expect(fmt(planDay('2026-10-28', DEFAULT_ROUTINE, []))).toEqual([
+test('a rotina padrão não tem tempo de estudo', () => {
+  expect(DEFAULT_ROUTINE).toEqual({ workStart: '08:00', workEnd: '17:00', workDays: [1, 2, 3, 4, 5] })
+})
+
+test('planDay em dia útil: notícias antes do trabalho e o trabalho, sem bloco de estudo', () => {
+  expect(fmt(planDay('2026-10-28', DEFAULT_ROUTINE, []))).toEqual(['07:45-08:00 Notícias do mercado', '08:00-17:00 Trabalho'])
+})
+
+test('planDay põe o compromisso da noite depois do trabalho', () => {
+  expect(fmt(planDay('2026-10-28', DEFAULT_ROUTINE, [ev({ title: 'Dentista', time: '18:00' })]))).toEqual([
     '07:45-08:00 Notícias do mercado',
     '08:00-17:00 Trabalho',
-    '18:00-19:00 Estudo: questões',
+    '18:00-19:00 Dentista',
   ])
 })
 
-test('planDay empurra o estudo para depois de um compromisso no mesmo horário', () => {
-  const plan = fmt(planDay('2026-10-28', DEFAULT_ROUTINE, [ev({ title: 'Dentista', time: '18:00' })]))
-  expect(plan).toContain('18:00-19:00 Dentista')
-  expect(plan).toContain('19:00-20:00 Estudo: questões')
-})
-
-test('planDay no sábado não tem trabalho e estuda às 9h', () => {
-  expect(fmt(planDay('2026-10-31', DEFAULT_ROUTINE, []))).toEqual(['09:00-10:00 Estudo: questões'])
+test('planDay no sábado sem compromissos fica vazio', () => {
+  expect(planDay('2026-10-31', DEFAULT_ROUTINE, [])).toEqual([])
 })
 
 test('planDay põe compromisso sem horário no topo e ignora outros dias', () => {
@@ -68,7 +70,6 @@ test('evento semanal aparece só nos dias marcados e a partir do início', () =>
 test('planDay usa a duração do compromisso', () => {
   const plan = fmt(planDay('2026-10-28', DEFAULT_ROUTINE, [ev({ title: 'Dentista', time: '18:00', durationMin: 90 })]))
   expect(plan).toContain('18:00-19:30 Dentista')
-  expect(plan).toContain('19:30-20:30 Estudo: questões')
 })
 
 test('planDay inclui evento semanal', () => {

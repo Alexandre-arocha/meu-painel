@@ -19,13 +19,13 @@ const item = (title: string, tag: string, link: string | null = null): NewsItem 
 
 test('filtro por tema mostra só as notícias daquele tema', async () => {
   const user = userEvent.setup()
-  const news = { fetchNews: async () => [item('Ibovespa fecha em alta', 'Mercado'), item('Edital publicado', 'Concursos')] }
+  const news = { fetchNews: async () => [item('Ibovespa fecha em alta', 'Mercado'), item('Chip novo', 'Tecnologia')] }
   render(<NewsPage news={news} />)
   expect(await screen.findByText('Ibovespa fecha em alta')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Concursos' }))
-  expect(screen.getByText('Edital publicado')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Tecnologia' }))
+  expect(screen.getByText('Chip novo')).toBeInTheDocument()
   expect(screen.queryByText('Ibovespa fecha em alta')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Concursos' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Tecnologia' })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('título da notícia abre o link em nova aba', async () => {
@@ -47,13 +47,13 @@ test('notícia com link perigoso aparece sem link', async () => {
 test('filtro Carteira mostra só notícias que citam BB ou B3', async () => {
   const user = userEvent.setup()
   const news = {
-    fetchNews: async () => [item('Banco do Brasil anuncia dividendos', 'Mercado'), item('Edital publicado', 'Concursos')],
+    fetchNews: async () => [item('Banco do Brasil anuncia dividendos', 'Mercado'), item('Chip novo', 'Tecnologia')],
   }
   render(<NewsPage news={news} />)
-  await screen.findByText('Edital publicado')
+  await screen.findByText('Chip novo')
   await user.click(screen.getByRole('button', { name: 'Carteira' }))
   expect(screen.getByText('Banco do Brasil anuncia dividendos')).toBeInTheDocument()
-  expect(screen.queryByText('Edital publicado')).toBeNull()
+  expect(screen.queryByText('Chip novo')).toBeNull()
 })
 
 test('Atualizar busca de novo e mostra a hora', async () => {
