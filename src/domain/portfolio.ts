@@ -1,4 +1,4 @@
-import { isDate } from './agenda'
+import { isDate, type AgendaEvent } from './agenda'
 
 // Investimentos cadastrados à mão. Os que têm cotação pública guardam código e quantidade; os demais, o valor em reais.
 export type PricedKind = 'acao' | 'fii' | 'etf' | 'bdr' | 'exterior' | 'cripto' | 'moeda'
@@ -118,6 +118,37 @@ export function totals(positions: Position[], prices: Record<string, number>): T
   }
   return { total: Object.values(byClass).reduce((a, b) => a + b, 0), byClass, missing }
 }
+
+// Variação do dia em reais: só os ativos com cotação oscilam; renda fixa, fundos e previdência entram pelo valor digitado.
+// Sem a cotação de algum ativo, ou sem nenhum ativo cotado, null: não há variação do dia para mostrar.
+export function dayChange(
+  positions: Position[],
+  quotes: { symbol: string; price: number; changePct: number }[],
+): { value: number; pct: number } | null {
+  if (!positions.some(isPriced)) return null
+  const bySymbol = new Map(quotes.map((q) => [q.symbol, q]))
+  let total = 0
+  let value = 0
+  for (const p of positions) {
+    if (!isPriced(p)) {
+      total += p.amount
+      continue
+    }
+    const q = bySymbol.get(priceKey(p))
+    if (!q) return null
+    const now = p.quantity * q.price
+    total += now
+    value += now - now / (1 + q.changePct / 100)
+  }
+  const before = total - value
+  return before > 0 && Number.isFinite(value) ? { value, pct: (value / before) * 100 } : null
+}
+
+// Cada vencimento vira uma data de mercado na agenda. Não é salvo: sai da carteira toda vez que a tela abre.
+export const maturityEvents = (positions: Position[]): AgendaEvent[] =>
+  positions.flatMap((p) =>
+    !isPriced(p) && p.maturity ? [{ id: `vence-${p.id}`, title: `Vence: ${p.name}`, date: p.maturity, kind: 'mercado' as const }] : [],
+  )
 
 export type ParseResult = { ok: true; value: number } | { ok: false; error: string }
 

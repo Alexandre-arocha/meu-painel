@@ -1,20 +1,19 @@
 import { useState, type FormEvent } from 'react'
-import { loadEvents, loadRoutine, saveEvents, saveRoutine } from '../data/storage'
+import { loadEvents, loadPositions, loadRoutine, saveEvents, saveRoutine } from '../data/storage'
 import {
   countdownLabel,
   importantDates,
   isDate,
   isTime,
-  monthGrid,
   newEventId,
-  occursOn,
   planDay,
-  shiftMonth,
   type AgendaEvent,
   type EventKind,
   type Routine,
 } from '../domain/agenda'
-import { localDate } from './format'
+import { maturityEvents } from '../domain/portfolio'
+import { localDate, WEEK } from './format'
+import { MonthCalendar } from './MonthCalendar'
 
 const KINDS: { id: EventKind; label: string }[] = [
   { id: 'pessoal', label: 'Pessoal' },
@@ -26,13 +25,7 @@ const LEGEND = [
   { kind: 'trabalho', label: 'Trabalho' },
   { kind: 'pessoal', label: 'Pessoal e provas' },
 ]
-const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-
 const brDate = (d: string) => d.split('-').reverse().join('/')
-const isoDay = (year: number, month: number, day: number) =>
-  `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-const monthOf = (date: string) => ({ year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) - 1 })
 const toggle = (days: number[], day: number, on: boolean) => (on ? [...days, day].sort((a, b) => a - b) : days.filter((d) => d !== day))
 
 type Form = { title: string; date: string; time: string; duration: string; kind: EventKind; repeat: number[] }
@@ -42,14 +35,16 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
   const [events, setEvents] = useState<AgendaEvent[]>(() => loadEvents(store))
   const [routine, setRoutine] = useState<Routine>(() => loadRoutine(store))
   const [selected, setSelected] = useState(today)
-  const [view, setView] = useState(() => monthOf(today))
+  // Os vencimentos da renda fixa entram no calendário, no plano e nas datas importantes; não são salvos nem removidos aqui.
+  const [maturities] = useState(() => maturityEvents(loadPositions(store)))
   const [form, setForm] = useState<Form>({ title: '', date: today, time: '', duration: '60', kind: 'pessoal', repeat: [] })
   const [formError, setFormError] = useState('')
   const [draft, setDraft] = useState(routine)
   const [routineMsg, setRoutineMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const plan = planDay(selected, routine, events)
-  const important = importantDates(events, today)
+  const allEvents = [...events, ...maturities]
+  const plan = planDay(selected, routine, allEvents)
+  const important = importantDates(allEvents, today)
   const weekly = events.filter((e) => e.weekdays?.length)
   const upcoming = events
     .filter((e) => !e.weekdays?.length && e.date >= today)
@@ -63,11 +58,6 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
   function selectDay(date: string) {
     setSelected(date)
     setForm((f) => ({ ...f, date }))
-  }
-
-  function backToToday() {
-    selectDay(today)
-    setView(monthOf(today))
   }
 
   function add(e: FormEvent) {
@@ -142,50 +132,15 @@ export function AgendaPage({ now = () => new Date(), store = localStorage }: { n
             ))}
           </ul>
           {selected !== today && (
-            <button type="button" className="ghost" onClick={backToToday}>
+            <button type="button" className="ghost" onClick={() => selectDay(today)}>
               Voltar para hoje
             </button>
           )}
         </section>
 
         <section className="card" aria-label="Calendário">
-          <div className="cal-head">
-            <button type="button" className="ghost icon" aria-label="Mês anterior" onClick={() => setView(shiftMonth(view.year, view.month, -1))}>
-              ‹
-            </button>
-            <h2>
-              {MONTHS[view.month]} de {view.year}
-            </h2>
-            <button type="button" className="ghost icon" aria-label="Próximo mês" onClick={() => setView(shiftMonth(view.year, view.month, 1))}>
-              ›
-            </button>
-          </div>
-          <div className="cal">
-            {WEEK.map((w) => (
-              <span key={w} className="h" aria-hidden="true">
-                {w[0]}
-              </span>
-            ))}
-            {monthGrid(view.year, view.month)
-              .flat()
-              .map((d, i) => {
-                if (!d) return <span key={i} />
-                const date = isoDay(view.year, view.month, d)
-                const n = events.filter((e) => occursOn(e, date)).length
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`${n ? 'has' : ''}${date === today ? ' today' : ''}`}
-                    aria-pressed={date === selected}
-                    aria-label={`${d} de ${MONTHS[view.month]}${n ? `, ${n} compromisso${n > 1 ? 's' : ''}` : ''}`}
-                    onClick={() => selectDay(date)}
-                  >
-                    {d}
-                  </button>
-                )
-              })}
-          </div>
+          <h2>Calendário</h2>
+          <MonthCalendar events={allEvents} today={today} selected={selected} onSelect={selectDay} />
           <p className="muted">Dias com traço azul têm compromisso. Toque num dia para ver o plano dele.</p>
         </section>
 
