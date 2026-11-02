@@ -20,11 +20,17 @@ export type Markets = {
   fx(codes: string[]): Promise<Quote[]>
   fxHistory(code: string): Promise<Point[]>
   cdi(today: string): Promise<Point[]> // % ao dia, 6 anos até hoje (AAAA-MM-DD)
+  sgsLast(code: SgsCode, count: number): Promise<Point[]> // os últimos valores de uma série do Banco Central
 }
+
+export const SGS_SELIC = 432 // Selic meta, % ao ano
+export const SGS_IPCA = 433 // IPCA, % ao mês
+type SgsCode = typeof SGS_SELIC | typeof SGS_IPCA
 
 const COINGECKO = 'https://api.coingecko.com/api/v3'
 const AWESOME = 'https://economia.awesomeapi.com.br/json'
-const SGS_CDI = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados' // Banco Central: CDI ao dia
+const sgsUrl = (code: number) => `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados`
+const SGS_CDI = 12 // CDI, % ao dia
 const BC_TIMEOUT_MS = 15_000
 
 const fromSeconds = (s: unknown) => {
@@ -40,6 +46,17 @@ export function createMarkets(fetchFn: typeof fetch = fetch, historyBase = '/api
     if (res.status === 401) throw new Error('sessão expirada; entre de novo')
     if (!res.ok && res.status !== 404) throw new Error(`erro ao buscar ${what} (${res.status})`)
     return res
+  }
+
+  async function sgs(url: string, what: string): Promise<Point[]> {
+    const res = await get(url, what, { signal: AbortSignal.timeout(BC_TIMEOUT_MS) })
+    if (res.status === 404) return []
+    const rows = (await res.json()) as { data?: string; valor?: string }[]
+    // Marcado ao meio-dia UTC: em Brasília ainda é o mesmo dia.
+    return rows
+      .map((r) => ({ t: `${(r.data ?? '').split('/').reverse().join('-')}T12:00:00.000Z`, p: Number(r.valor) }))
+      .filter((x) => !Number.isNaN(Date.parse(x.t)) && Number.isFinite(x.p))
+      .sort(byTime)
   }
 
   return {
@@ -105,15 +122,11 @@ export function createMarkets(fetchFn: typeof fetch = fetch, historyBase = '/api
       const br = (d: string) => d.split('-').reverse().join('/')
       // Um ano a mais que os 5 do Yahoo, para o CDI sempre cobrir o primeiro dia da série do ativo.
       const from = `${Number(today.slice(0, 4)) - 6}${today.slice(4)}`
-      const url = `${SGS_CDI}?formato=json&dataInicial=${br(from)}&dataFinal=${br(today)}`
-      const res = await get(url, 'o CDI', { signal: AbortSignal.timeout(BC_TIMEOUT_MS) })
-      if (res.status === 404) return []
-      const rows = (await res.json()) as { data?: string; valor?: string }[]
-      // Marcado ao meio-dia UTC: em Brasília ainda é o mesmo dia.
-      return rows
-        .map((r) => ({ t: `${(r.data ?? '').split('/').reverse().join('-')}T12:00:00.000Z`, p: Number(r.valor) }))
-        .filter((x) => !Number.isNaN(Date.parse(x.t)) && Number.isFinite(x.p))
-        .sort(byTime)
+      return sgs(`${sgsUrl(SGS_CDI)}?formato=json&dataInicial=${br(from)}&dataFinal=${br(today)}`, 'o CDI')
+    },
+
+    sgsLast(code, count) {
+      return sgs(`${sgsUrl(code)}/ultimos/${count}?formato=json`, 'o índice')
     },
   }
 }

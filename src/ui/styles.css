@@ -275,6 +275,11 @@ a.button:active { transform: scale(0.97); }
 .results th { white-space: normal; }
 .results td, .results tbody th { font-size: 0.9375rem; }
 .card > .chips { margin-bottom: 8px; }
+.heat { width: 100%; margin: 8px 0; border-collapse: separate; border-spacing: 2px; font-size: 0.875rem; }
+.heat th { padding: 6px 8px; font-weight: 500; text-align: left; white-space: nowrap; }
+.heat td { min-width: 56px; padding: 8px; border-radius: 6px; text-align: center; }
+.chart-box.cloud { height: 220px; }
+.versus { margin: 0 0 14px; }
 .legend-line { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--mut); font-size: 0.8125rem; }
 .swatch { display: inline-block; width: 12px; height: 3px; margin-right: 6px; border-radius: 2px; vertical-align: middle; }
 .metrics.quant-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 16px 0 0; }

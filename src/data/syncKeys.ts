@@ -6,6 +6,7 @@ export const SYNC_KEYS = [
   'painel:v1:settings',
   'painel:v1:events',
   'painel:v1:routine',
+  'painel:v1:snapshots',
 ] as const
 
 export const isSyncKey = (key: string): boolean => (SYNC_KEYS as readonly string[]).includes(key)

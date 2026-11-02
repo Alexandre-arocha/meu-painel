@@ -40,6 +40,7 @@ function markets(calls: string[] = []): Markets {
     fx: async () => [],
     fxHistory: async () => [],
     cdi: async () => [],
+    sgsLast: async () => [],
   }
 }
 

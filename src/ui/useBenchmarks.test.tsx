@@ -23,6 +23,10 @@ function markets(over: Partial<Markets> = {}) {
       asked.push(`cdi ${today}`)
       return [day(28, 0.05)]
     },
+    sgsLast: async (code) => {
+      asked.push(`sgs ${code}`)
+      return [day(28, code === 432 ? 13 : 0.4)]
+    },
     ...over,
   }
   return { m, asked }
@@ -36,13 +40,15 @@ test('busca o Ibovespa e o CDI uma vez por dia, junta ao guardado e guarda', asy
   const { result } = renderHook(() => useBenchmarks({ markets: m, store: localStorage, today: TODAY }))
   await waitFor(() => expect(result.current.cdi).toEqual([day(28, 0.05)]))
   expect(result.current.ibov).toEqual([day(27, 129000), day(28, 130000)])
-  expect([...asked].sort()).toEqual(['^BVSP 5y', `cdi ${TODAY}`])
-  expect(loadBenchmarks().fetched).toEqual({ ibov: TODAY, cdi: TODAY })
+  expect(result.current.selic).toEqual([day(28, 13)])
+  expect(result.current.ipca).toEqual([day(28, 0.4)])
+  expect([...asked].sort()).toEqual(['^BVSP 5y', `cdi ${TODAY}`, 'sgs 432', 'sgs 433'])
+  expect(loadBenchmarks().fetched).toEqual({ ibov: TODAY, cdi: TODAY, selic: TODAY, ipca: TODAY })
 })
 
 test('com o guardado de hoje, não busca de novo', () => {
-  const saved = { ibov: [day(28, 130000)], cdi: [day(28, 0.05)] }
-  saveBenchmarks({ series: saved, fetched: { ibov: TODAY, cdi: TODAY } })
+  const saved = { ibov: [day(28, 130000)], cdi: [day(28, 0.05)], selic: [day(28, 13)], ipca: [day(28, 0.4)] }
+  saveBenchmarks({ series: saved, fetched: { ibov: TODAY, cdi: TODAY, selic: TODAY, ipca: TODAY } })
   const { m, asked } = markets()
   const { result } = renderHook(() => useBenchmarks({ markets: m, store: localStorage, today: TODAY }))
   expect(result.current).toEqual(saved)
@@ -59,5 +65,5 @@ test('se o CDI falhar, fica o guardado, o Ibovespa segue e amanhã tenta de novo
   const { result } = renderHook(() => useBenchmarks({ markets: m, store: localStorage, today: TODAY }))
   await waitFor(() => expect(result.current.ibov).toEqual([day(28, 130000)]))
   expect(result.current.cdi).toEqual([day(27, 0.05)])
-  expect(loadBenchmarks().fetched).toEqual({ ibov: TODAY })
+  expect(loadBenchmarks().fetched).toEqual({ ibov: TODAY, selic: TODAY, ipca: TODAY })
 })

@@ -15,11 +15,16 @@ import {
   resolveTargets,
   totals,
 } from '../domain/portfolio'
+import { yearVersus } from '../domain/portfolioLab'
 import { hhmm, localDate, longDate, money, pct, signedMoney } from './format'
+import { LineChart } from './LineChart'
 import { MarketStrip } from './MarketStrip'
 import { MonthCalendar } from './MonthCalendar'
 import { NewsFeed } from './NewsFeed'
+import { useBenchmarks } from './useBenchmarks'
+import { useHistory } from './useHistory'
 import { usePrices } from './usePrices'
+import { useSnapshots } from './useSnapshots'
 
 const defaultMarkets = createMarkets()
 const TOP = 6 // ativos com cotação na lista do Início
@@ -53,6 +58,19 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
   const ready = sums.missing.length === 0 && sums.total > 0
   // Com um preço velho na conta, a variação já não é a do dia: ela some até a fonte voltar.
   const change = ready ? dayChange(positions, quotes.filter((q) => !q.stale)) : null
+  // Preço velho não entra na evolução: o dia só é gravado com todas as fontes de hoje.
+  const snapshots = useSnapshots(ready && !quotes.some((q) => q.stale) ? sums.total : null, today, store)
+  const days = Object.entries(snapshots).sort(([a], [b]) => a.localeCompare(b))
+  const history = useHistory(positions, { makePrices, token: settings.brapiToken, markets, store, today })
+  const benchmarks = useBenchmarks({ markets, store, today })
+  const versus = ready
+    ? yearVersus(
+        positions.filter(isPriced).map((p) => ({ points: history.series[priceKey(p)] ?? [], value: positionValue(p, prices) ?? 0 })),
+        benchmarks.ibov,
+        benchmarks.cdi,
+      )
+    : null
+  const versusText = (label: string, n: number | null | undefined) => (n == null ? [] : [`${label} ${pct(n * 100)}`])
   const target = resolveTargets(settings)
   // As classes com valor pegam as cores da paleta em ordem: vizinhas na barra são sempre vizinhas na paleta, o único
   // jeito de as 8 cores passarem no teste de daltonismo. Classe só com meta entra na legenda, sem cor.
@@ -102,6 +120,20 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
                   </span>
                 )}
               </div>
+              {days.length > 1 && (
+                <LineChart
+                  height={64}
+                  label="Evolução do patrimônio"
+                  dates={days.map(([d]) => d.split('-').reverse().join('/'))}
+                  format={money}
+                  series={[{ label: 'Patrimônio', values: days.map(([, v]) => v), color: 'var(--viz-1)' }]}
+                />
+              )}
+              {versus && (
+                <p className="muted versus">
+                  Em 1 ano: {[...versusText('seus ativos', versus.you), ...versusText('Ibovespa', versus.ibov), ...versusText('CDI', versus.cdi)].join(' · ')}
+                </p>
+              )}
               {ready ? (
                 <>
                   <div className="class-bar" aria-hidden="true">

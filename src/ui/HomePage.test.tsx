@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HomePage } from './HomePage'
-import { saveEvents, savePositions } from '../data/storage'
+import { loadSnapshots, saveEvents, savePositions, saveSnapshots } from '../data/storage'
 import type { Chart, Markets } from '../data/markets'
 import type { NewsItem, NewsSource } from '../data/news'
 import type { PriceProvider, Quote } from '../data/prices'
@@ -33,6 +33,7 @@ const markets = (over: Partial<Markets> = {}): Markets => ({
   fx: async () => [quote('fx:USD', 5.44, -0.4)],
   fxHistory: async () => [],
   cdi: async () => [],
+  sgsLast: async () => [],
   ...over,
 })
 const item = (title: string, tags: string[]): NewsItem => ({
@@ -94,6 +95,33 @@ test('as cores da barra seguem a ordem das classes que você tem, sem pular cor 
   // Cripto é a 6ª classe, mas é a 2ª que você tem: fica com a 2ª cor, a vizinha validada da 1ª.
   expect(classes.getByText('Renda fixa').previousElementSibling?.getAttribute('style')).toContain('var(--viz-1)')
   expect(classes.getByText('Cripto').previousElementSibling?.getAttribute('style')).toContain('var(--viz-2)')
+})
+
+test('grava o patrimônio do dia só com todos os preços e mostra a curva a partir de dois dias', async () => {
+  savePositions([bbas3])
+  saveSnapshots({ '2026-10-27': 1500 })
+  renderHome({ makePrices: prices([quote('BBAS3', 16.46, 1)]) })
+  expect(await screen.findByRole('img', { name: /Evolução do patrimônio/ })).toBeInTheDocument()
+  expect(loadSnapshots()).toEqual({ '2026-10-27': 1500, '2026-10-28': 1646 })
+})
+
+test('sem os preços, não grava o dia', async () => {
+  savePositions([bbas3])
+  renderHome()
+  await screen.findByText('Informe o token da brapi em Editar carteira para ver os preços.')
+  expect(loadSnapshots()).toEqual({})
+})
+
+test('com 1 ano de histórico, compara os seus ativos com o Ibovespa e o CDI', async () => {
+  savePositions([bbas3])
+  const year = Array.from({ length: 250 }, (_, i) => ({ t: new Date(Date.UTC(2026, 9, 27, 15) - (249 - i) * 86_400_000 * 1.47).toISOString(), p: 10 * 1.001 ** i }))
+  const m = markets({
+    chart: async (symbol) => ({ ...chart(10, 0), points: symbol === '^BVSP' ? year.map((x) => ({ ...x, p: x.p / 2 })) : symbol === 'BBAS3.SA' ? year : [] }),
+    cdi: async () => year.map((x) => ({ t: x.t, p: 0.04 })),
+  })
+  renderHome({ makePrices: prices([quote('BBAS3', 16.46, 1)]), markets: m })
+  const line = await screen.findByText(/^Em 1 ano:/)
+  expect(line).toHaveTextContent(/seus ativos \+\d+,\d+% · Ibovespa \+\d+,\d+% · CDI \+\d+,\d+%/)
 })
 
 test('Início sem preço mostra traço e o motivo, sem quebrar', async () => {
