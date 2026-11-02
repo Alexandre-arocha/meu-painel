@@ -39,6 +39,7 @@ function markets(calls: string[] = []): Markets {
     findCrypto: async () => null,
     fx: async () => [],
     fxHistory: async () => [],
+    cdi: async () => [],
   }
 }
 
@@ -135,7 +136,8 @@ test('o motor usa uma busca só do histórico de 5 anos por ativo', async () => 
   const calls: string[] = []
   renderPage({ markets: markets(calls) })
   expect(await screen.findByRole('img', { name: /Preço ajustado de BBAS3/ })).toBeInTheDocument()
-  expect(calls.filter((c) => c.endsWith('5y'))).toEqual(['BBAS3.SA 5y'])
+  // O Ibovespa entra uma vez, como régua do motor.
+  expect(calls.filter((c) => c.endsWith('5y')).sort()).toEqual(['BBAS3.SA 5y', '^BVSP 5y'])
 })
 
 test('mostra o aviso "Sinal de apoio, não é previsão garantida."', () => {

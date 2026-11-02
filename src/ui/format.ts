@@ -36,6 +36,11 @@ export function dayMonth(iso: string): string {
   return `${d.slice(8, 10)}/${d.slice(5, 7)}`
 }
 
+// Com o ano, para períodos longos: "30/10/26".
+export function dayMonthYear(iso: string): string {
+  return `${dayMonth(iso)}/${tradingDay(iso).slice(2, 4)}`
+}
+
 export const dayTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 

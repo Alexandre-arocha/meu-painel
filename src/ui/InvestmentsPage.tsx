@@ -8,6 +8,7 @@ import { AllocationCard } from './AllocationCard'
 import { localDate } from './format'
 import { PositionsCard } from './PositionsCard'
 import { QuantEngine } from './QuantEngine'
+import { useBenchmarks } from './useBenchmarks'
 import { useHistory } from './useHistory'
 import { usePrices } from './usePrices'
 
@@ -31,6 +32,7 @@ export function InvestmentsPage({ makePrices, markets = defaultMarkets, news, no
   const { quotes, error } = usePrices(positions, { makePrices, token, markets, store, now })
   // Uma busca só do histórico para o motor: 1 por ativo por dia.
   const history = useHistory(positions, { makePrices, token, markets, store, today: localDate(now()) })
+  const benchmarks = useBenchmarks({ markets, store, today: localDate(now()) })
   const assetKeys = priceKeys(positions).join(',')
 
   // As notícias de cada ativo alimentam o sinal do motor; a busca refaz quando entra ou sai um ativo.
@@ -75,7 +77,7 @@ export function InvestmentsPage({ makePrices, markets = defaultMarkets, news, no
             savePositions(next, store)
           }}
         />
-        <QuantEngine history={history} positions={positions} quotes={quotes} targets={targets} news={items} now={new Date(now())} />
+        <QuantEngine history={history} benchmarks={benchmarks} positions={positions} quotes={quotes} targets={targets} news={items} now={new Date(now())} />
         <AllocationCard
           key={JSON.stringify(targets ?? null)}
           totals={totals(positions, prices)}

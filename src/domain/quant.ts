@@ -39,7 +39,17 @@ export function maxDrawdown(values: number[]): number {
 
 // RSI de Wilder, o das corretoras: média simples dos n primeiros dias, depois suavizada dia a dia; null sem dados suficientes.
 export function rsi(values: number[], n = 14): number | null {
-  if (values.length < n + 1) return null
+  return rsiSeries(values, n)[values.length - 1] ?? null
+}
+
+function strength(gain: number, loss: number): number {
+  if (gain === 0 && loss === 0) return 50
+  if (loss === 0) return 100
+  return 100 - 100 / (1 + gain / loss)
+}
+
+function rsiSeries(values: number[], n = 14): (number | null)[] {
+  const out: (number | null)[] = values.map(() => null)
   let gain = 0
   let loss = 0
   for (let i = 1; i < values.length; i++) {
@@ -53,34 +63,152 @@ export function rsi(values: number[], n = 14): number | null {
       gain = (gain * (n - 1) + up) / n
       loss = (loss * (n - 1) + down) / n
     }
+    if (i >= n) out[i] = strength(gain, loss)
   }
-  if (gain === 0 && loss === 0) return 50
-  if (loss === 0) return 100
-  return 100 - 100 / (1 + gain / loss)
+  return out
 }
+
+// Média exponencial: começa pela média simples dos n primeiros dias.
+export function ema(values: number[], n: number): (number | null)[] {
+  const k = 2 / (n + 1)
+  let prev = 0
+  return values.map((v, i) => {
+    if (i < n - 1) return null
+    prev = i === n - 1 ? mean(values.slice(0, n)) : v * k + prev * (1 - k)
+    return prev
+  })
+}
+
+export function macd(values: number[], fast = 12, slow = 26, smooth = 9): { line: (number | null)[]; signal: (number | null)[] } {
+  const f = ema(values, fast)
+  const s = ema(values, slow)
+  const line = values.map((_, i) => {
+    const [a, b] = [f[i], s[i]]
+    return a == null || b == null ? null : a - b
+  })
+  const start = Math.min(slow - 1, values.length)
+  return { line, signal: [...line.slice(0, start), ...ema(line.slice(start) as number[], smooth)] }
+}
+
+// Bandas de Bollinger: média de n dias e k desvios (da população, como nas corretoras) para cada lado.
+export function bollinger(values: number[], n = 20, k = 2): { middle: (number | null)[]; upper: (number | null)[]; lower: (number | null)[] } {
+  const middle = sma(values, n)
+  const width = middle.map((m, i) => {
+    if (m == null) return null
+    const window = values.slice(i - n + 1, i + 1)
+    return k * Math.sqrt(window.reduce((a, v) => a + (v - m) ** 2, 0) / n)
+  })
+  const band = (sign: number) => middle.map((m, i) => (m == null ? null : m + sign * (width[i] as number)))
+  return { middle, upper: band(1), lower: band(-1) }
+}
+
+// Onde o último preço está entre as bandas: 0 na de baixo, 1 na de cima; pode passar dos dois lados.
+export function bollingerPosition(values: number[]): number | null {
+  const { upper, lower } = bollinger(values)
+  const i = values.length - 1
+  const [up, low] = [upper[i], lower[i]]
+  if (up == null || low == null || up === low) return null
+  return (values[i] - low) / (up - low)
+}
+
+// Retorno por unidade de risco acima do CDI, ao ano. Séries do mesmo tamanho; sem variação, null.
+export function sharpe(returns: number[], riskFree: number[]): number | null {
+  const excess = returns.map((r, i) => r - riskFree[i])
+  const sd = stdev(excess)
+  return sd > 0 ? (mean(excess) / sd) * Math.sqrt(TRADING_DAYS) : null
+}
+
+// Como o Sharpe, mas só as quedas contam como risco; sem nenhuma queda, null.
+export function sortino(returns: number[], riskFree: number[]): number | null {
+  const excess = returns.map((r, i) => r - riskFree[i])
+  if (excess.length === 0) return null
+  const downside = Math.sqrt(mean(excess.map((e) => Math.min(e, 0) ** 2)))
+  return downside > 0 ? (mean(excess) / downside) * Math.sqrt(TRADING_DAYS) : null
+}
+
+// Quanto o ativo anda a cada 1 do mercado.
+export function beta(returns: number[], market: number[]): number | null {
+  const [mr, mm] = [mean(returns), mean(market)]
+  const cov = returns.reduce((a, r, i) => a + (r - mr) * (market[i] - mm), 0)
+  const variance = market.reduce((a, m) => a + (m - mm) ** 2, 0)
+  return variance > 0 ? cov / variance : null
+}
+
+// CDI acumulado de cada ponto desde o primeiro, que vale 1. As taxas são % ao dia, em ordem; sem cobrir o início, null.
+export function cdiIndex(points: Point[], rates: Point[]): number[] | null {
+  const start = points[0] && tradingDay(points[0].t)
+  if (!start || !rates[0] || tradingDay(rates[0].t) > start) return null
+  let j = 0
+  while (j < rates.length && tradingDay(rates[j].t) <= start) j++
+  let total = 1
+  return points.map((x) => {
+    const day = tradingDay(x.t)
+    for (; j < rates.length && tradingDay(rates[j].t) <= day; j++) total *= 1 + rates[j].p / 100
+    return total
+  })
+}
+
+export const indexTo100 = (values: number[]) => values.map((v) => (v / values[0]) * 100)
 
 export type Backtest = { strategy: number[]; hold: number[]; trades: number }
 
-// Fica comprado no dia seguinte a um dia em que a média rápida fechou acima da lenta.
-export function maCrossBacktest(values: number[], fast = 9, slow = 21): Backtest {
-  const f = sma(values, fast)
-  const s = sma(values, slow)
+// signal[i]: quer estar comprado depois do fechamento do dia i. O ganho só conta do dia seguinte, e cada troca paga o custo.
+export function backtest(values: number[], signal: boolean[], cost = 0): Backtest {
   let inPosition = false
   let trades = 0
-  const strategy = [1]
-  const hold = [1]
-  for (let i = 1; i < values.length; i++) {
-    const r = values[i] / values[i - 1] - 1
-    strategy.push(strategy[i - 1] * (inPosition ? 1 + r : 1))
-    hold.push(hold[i - 1] * (1 + r))
-    const fi = f[i]
-    const si = s[i]
-    if (fi != null && si != null && (fi > si) !== inPosition) {
+  const strategy: number[] = []
+  const hold: number[] = []
+  for (let i = 0; i < values.length; i++) {
+    const r = i === 0 ? 0 : values[i] / values[i - 1] - 1
+    strategy.push((strategy[i - 1] ?? 1) * (inPosition ? 1 + r : 1))
+    hold.push((hold[i - 1] ?? 1) * (1 + r))
+    if (signal[i] !== inPosition) {
       inPosition = !inPosition
       trades++
+      strategy[i] *= 1 - cost
     }
   }
   return { strategy, hold, trades }
+}
+
+// Cruzamento: comprado com a média rápida acima da lenta.
+export function maCrossSignal(values: number[], fast: number, slow: number): boolean[] {
+  const f = sma(values, fast)
+  const s = sma(values, slow)
+  return values.map((_, i) => {
+    const [a, b] = [f[i], s[i]]
+    return a != null && b != null && a > b
+  })
+}
+
+// Entra quando o indicador pede e segura até ele pedir para sair.
+function holdUntil(values: number[], enter: (i: number) => boolean, exit: (i: number) => boolean): boolean[] {
+  let on = false
+  return values.map((_, i) => {
+    if (enter(i)) on = true
+    else if (exit(i)) on = false
+    return on
+  })
+}
+
+export function rsiSignal(values: number[], low = 30, high = 70): boolean[] {
+  const r = rsiSeries(values)
+  return holdUntil(values, (i) => (r[i] ?? 50) < low, (i) => (r[i] ?? 50) > high)
+}
+
+// Compra abaixo da banda de baixo e vende quando o preço volta para cima da média.
+export function bollingerSignal(values: number[]): boolean[] {
+  const { middle, lower } = bollinger(values)
+  return holdUntil(
+    values,
+    (i) => values[i] < (lower[i] ?? -Infinity),
+    (i) => values[i] > (middle[i] ?? Infinity),
+  )
+}
+
+// Comprado quando o preço está acima do de n pregões atrás (63 pregões: cerca de 3 meses).
+export function momentumSignal(values: number[], n = 63): boolean[] {
+  return values.map((v, i) => i >= n && v > values[i - n])
 }
 
 // Correlação de Pearson dos últimos pontos em comum; null quando uma série não varia.
@@ -145,7 +273,6 @@ export function withLivePrice(points: Point[], live?: Pick<Quote, 'price' | 'upd
   return day === lastDay ? [...points.slice(0, -1), point] : [...points, point]
 }
 
-// Fechamentos de cada série só nos dias em que todas negociaram, para comparar dia com dia.
 const MAX_POINTS = 2600 // cerca de 10 anos de pregões
 
 // Junta fechamentos novos aos guardados pelo dia do pregão: o novo vale mais.
@@ -159,9 +286,21 @@ export function mergeSeries(old: Point[], fresh: Point[]): Point[] {
 export function lastMonths(points: Point[], months: number): Point[] {
   const end = points[points.length - 1]
   if (!end) return []
-  const from = new Date(end.t)
-  from.setUTCMonth(from.getUTCMonth() - months)
-  return points.filter((x) => Date.parse(x.t) >= from.getTime())
+  const from = monthsBefore(end.t, months)
+  return points.filter((x) => Date.parse(x.t) >= from)
+}
+
+function monthsBefore(iso: string, months: number): number {
+  const d = new Date(iso)
+  return d.setUTCMonth(d.getUTCMonth() - months)
+}
+
+const SLACK_DAYS = 15 // feriados e dias sem pregão no começo do período
+
+// A série cobre esse período inteiro? A cripto, por exemplo, só tem 1 ano.
+export function hasMonths(points: Point[], months: number): boolean {
+  const end = points[points.length - 1]
+  return !!end && Date.parse(points[0].t) <= monthsBefore(end.t, months) + SLACK_DAYS * 86_400_000
 }
 
 // Série em dólar em reais, pelo dólar do mesmo dia; sem cotação no dia, vale a do dia anterior. As duas vêm em ordem.
@@ -176,8 +315,13 @@ export function inBrl(points: Point[], usd: Point[]): Point[] {
   return out
 }
 
-export function alignByDay(list: Point[][]): number[][] {
-  const byDay = list.map((points) => new Map(points.map((x) => [tradingDay(x.t), x.p])))
+// Os pontos de cada série só nos dias em que todas negociaram, para comparar dia com dia.
+export function alignPoints(list: Point[][]): Point[][] {
+  const byDay = list.map((points) => new Map(points.map((x) => [tradingDay(x.t), x])))
   const days = [...(byDay[0]?.keys() ?? [])].filter((d) => byDay.every((m) => m.has(d)))
-  return byDay.map((m) => days.map((d) => m.get(d) as number))
+  return byDay.map((m) => days.map((d) => m.get(d) as Point))
+}
+
+export function alignByDay(list: Point[][]): number[][] {
+  return alignPoints(list).map((points) => points.map((x) => x.p))
 }

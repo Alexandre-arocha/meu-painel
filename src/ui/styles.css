@@ -267,10 +267,14 @@ a.button:active { transform: scale(0.97); }
 .more-info dt { font-weight: 600; }
 .more-info dd { margin: 0; color: var(--mut); }
 .table-wrap { overflow-x: auto; }
-.more-info table { width: 100%; border-collapse: collapse; }
-.more-info th, .more-info td { padding: 6px 8px; border-bottom: 1px solid var(--bd); text-align: right; white-space: nowrap; }
-.more-info th:first-child { padding-left: 0; text-align: left; }
-.more-info thead th { color: var(--mut); font-weight: 600; }
+.more-info table, table.results { width: 100%; border-collapse: collapse; }
+.more-info th, .more-info td, .results th, .results td { padding: 6px 8px; border-bottom: 1px solid var(--bd); text-align: right; white-space: nowrap; }
+.more-info th:first-child, .results th:first-child { padding-left: 0; text-align: left; }
+.more-info thead th, .results thead th { color: var(--mut); font-weight: 600; }
+.results tbody th { font-weight: 500; }
+.results th { white-space: normal; }
+.results td, .results tbody th { font-size: 0.9375rem; }
+.card > .chips { margin-bottom: 8px; }
 .legend-line { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--mut); font-size: 0.8125rem; }
 .swatch { display: inline-block; width: 12px; height: 3px; margin-right: 6px; border-radius: 2px; vertical-align: middle; }
 .metrics.quant-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 16px 0 0; }
