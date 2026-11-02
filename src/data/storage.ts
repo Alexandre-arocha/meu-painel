@@ -104,8 +104,10 @@ export type PricesCache = { series: Record<string, Point[]>; fetched: Record<str
 const isPoint = (x: unknown): x is Point => !!x && typeof (x as Point).t === 'string' && Number.isFinite((x as Point).p)
 
 // Histórico guardado só neste aparelho: cada busca junta dias novos ao que já existe, então ele só cresce.
-export function loadPrices(store: Storage = localStorage): PricesCache {
-  const d = readJson(store, PRICES_KEY) as Partial<PricesCache> | null
+export const loadPrices = (store: Storage = localStorage): PricesCache => readCache(store, PRICES_KEY)
+
+function readCache(store: Storage, key: string): PricesCache {
+  const d = readJson(store, key) as Partial<PricesCache> | null
   const series: PricesCache['series'] = {}
   for (const [key, points] of Object.entries(d?.series ?? {})) {
     const valid = Array.isArray(points) ? points.filter(isPoint) : []
@@ -118,6 +120,12 @@ export function loadPrices(store: Storage = localStorage): PricesCache {
 export function savePrices(cache: PricesCache, store: Storage = localStorage): boolean {
   return write(store, PRICES_KEY, cache)
 }
+
+const BENCHMARKS_KEY = 'painel:v1:benchmarks'
+
+// Ibovespa e CDI, no mesmo formato do histórico e também só neste aparelho.
+export const loadBenchmarks = (store: Storage = localStorage): PricesCache => readCache(store, BENCHMARKS_KEY)
+export const saveBenchmarks = (cache: PricesCache, store: Storage = localStorage): boolean => write(store, BENCHMARKS_KEY, cache)
 
 const EVENTS_KEY = 'painel:v1:events'
 const ROUTINE_KEY = 'painel:v1:routine'

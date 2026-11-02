@@ -13,6 +13,17 @@ function fake(routes: Record<string, unknown>) {
   return { fetchFn, calls }
 }
 
+test('cdi pede 6 anos ao Banco Central com tempo limite e marca cada dia ao meio-dia UTC', async () => {
+  let asked: { url: string; init?: RequestInit } | undefined
+  const fetchFn = (async (url: string, init?: RequestInit) => {
+    asked = { url, init }
+    return new Response(JSON.stringify([{ data: '03/11/2021', valor: '0.029256' }, { data: 'x', valor: '1' }, { data: '04/11/2021', valor: 'abc' }]))
+  }) as unknown as typeof fetch
+  expect(await createMarkets(fetchFn).cdi('2026-11-02')).toEqual([{ t: '2021-11-03T12:00:00.000Z', p: 0.029256 }])
+  expect(asked!.url).toContain('bcdata.sgs.12/dados?formato=json&dataInicial=02/11/2020&dataFinal=02/11/2026')
+  expect(asked!.init?.signal).toBeInstanceOf(AbortSignal)
+})
+
 const historyBody = {
   currency: 'BRL',
   price: 16.5,
@@ -113,6 +124,7 @@ const markets = (over: Partial<Markets> = {}): Markets => ({
   findCrypto: async () => null,
   fx: async () => [],
   fxHistory: async () => [],
+  cdi: async () => [],
   ...over,
 })
 const chartOf = (over: Partial<Chart> = {}): Chart => ({ currency: 'BRL', price: 1, changePct: 0, updatedAt: null, name: null, points: [], ...over })

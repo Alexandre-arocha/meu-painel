@@ -32,6 +32,7 @@ const markets = (over: Partial<Markets> = {}): Markets => ({
   findCrypto: async () => null,
   fx: async () => [quote('fx:USD', 5.44, -0.4)],
   fxHistory: async () => [],
+  cdi: async () => [],
   ...over,
 })
 const item = (title: string, tags: string[]): NewsItem => ({

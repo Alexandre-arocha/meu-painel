@@ -40,6 +40,7 @@ function sources(over: Partial<Markets> = {}) {
       return codes.map((c) => quote(`fx:${c}`, c === 'USD' ? 5 : 6, 2))
     },
     fxHistory: async () => [],
+    cdi: async () => [],
     ...over,
   }
   return { calls, deps: { makePrices: () => brapi, token: 'tok', markets, store: localStorage, now: () => new Date('2026-10-28T14:00:00Z') } }

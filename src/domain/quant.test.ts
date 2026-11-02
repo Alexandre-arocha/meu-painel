@@ -1,11 +1,26 @@
 import {
+  alignPoints,
+  backtest,
+  beta,
+  bollinger,
+  bollingerPosition,
+  bollingerSignal,
+  cdiIndex,
+  ema,
+  hasMonths,
+  indexTo100,
+  macd,
+  maCrossSignal,
+  momentumSignal,
+  rsiSignal,
+  sharpe,
+  sortino,
   alignByDay,
   annualVol,
   correlation,
   dailyReturns,
   inBrl,
   lastMonths,
-  maCrossBacktest,
   maxDrawdown,
   mergeSeries,
   portfolioRisk,
@@ -49,11 +64,112 @@ test('rsi suaviza ganhos e perdas pelo método de Wilder, o padrão das corretor
   expect(rsi([1, 3, 4, 3], 2)).toBeCloseTo(60)
 })
 
-test('maCrossBacktest compara a estratégia de médias com comprar e segurar', () => {
-  const r = maCrossBacktest([10, 9, 8, 9, 10, 11, 12], 2, 3)
+test('backtest com o sinal das médias compara a estratégia com comprar e segurar', () => {
+  const values = [10, 9, 8, 9, 10, 11, 12]
+  const r = backtest(values, maCrossSignal(values, 2, 3))
   r.strategy.forEach((v, i) => expect(v).toBeCloseTo([1, 1, 1, 1, 1, 1.1, 1.2][i]))
   r.hold.forEach((v, i) => expect(v).toBeCloseTo([1, 0.9, 0.8, 0.9, 1, 1.1, 1.2][i]))
   expect(r.trades).toBe(1)
+})
+
+test('backtest desconta o custo a cada troca e só entra no dia seguinte ao sinal', () => {
+  const r = backtest([10, 11, 11], [true, false, false], 0.01)
+  // Entra no fechamento do dia 0 (paga 1%), ganha os 10% do dia 1 e sai no fechamento dele (paga mais 1%).
+  r.strategy.forEach((v, i) => expect(v).toBeCloseTo([0.99, 0.99 * 1.1 * 0.99, 0.99 * 1.1 * 0.99][i]))
+  expect(r.hold[2]).toBeCloseTo(1.1)
+  expect(r.trades).toBe(2)
+})
+
+test('rsiSignal compra abaixo de 30 e vende acima de 70', () => {
+  const down = Array.from({ length: 16 }, (_, i) => 100 - i)
+  const up = Array.from({ length: 30 }, (_, i) => 85 + i * 2)
+  const s = rsiSignal([...down, ...up])
+  expect(s[13]).toBe(false) // ainda sem RSI
+  expect(s[15]).toBe(true) // só caiu: RSI 0
+  expect(s[s.length - 1]).toBe(false) // subiu até passar de 70
+})
+
+test('bollingerSignal compra abaixo da banda de baixo e vende acima da média', () => {
+  const flat = Array.from({ length: 20 }, (_, i) => (i % 2 ? 101 : 99))
+  const s = bollingerSignal([...flat, 90, 95, 105])
+  expect(s[19]).toBe(false)
+  expect(s[20]).toBe(true)
+  expect(s[21]).toBe(true)
+  expect(s[22]).toBe(false)
+})
+
+test('momentumSignal fica comprado quando o preço está acima de n pregões atrás', () => {
+  expect(momentumSignal([10, 11, 12, 11, 10], 2)).toEqual([false, false, true, false, false])
+})
+
+test('ema começa pela média simples e depois pesa mais os dias novos', () => {
+  const e = ema([1, 2, 3, 4, 5], 3)
+  expect(e.slice(0, 2)).toEqual([null, null])
+  expect(e[2]).toBeCloseTo(2)
+  expect(e[3]).toBeCloseTo(3)
+  expect(e[4]).toBeCloseTo(4)
+})
+
+test('macd com alta constante fica acima de zero e o sinal converge para ele', () => {
+  const m = macd(Array.from({ length: 200 }, (_, i) => 100 + i))
+  expect(m.line[24]).toBeNull()
+  expect(m.line[25]).not.toBeNull()
+  expect(m.signal[32]).toBeNull()
+  // Numa reta, o MACD tende a (26 - 12) / 2 = 7 por dia de inclinação.
+  expect(m.line[199]).toBeCloseTo(7, 3)
+  expect(m.signal[199]).toBeCloseTo(7, 3)
+})
+
+test('bollinger usa o desvio da população, e a posição vai de 0 (banda de baixo) a 1 (banda de cima)', () => {
+  const values = Array.from({ length: 20 }, (_, i) => (i % 2 ? 11 : 9))
+  const b = bollinger(values)
+  expect(b.middle[19]).toBeCloseTo(10)
+  expect(b.upper[19]).toBeCloseTo(12)
+  expect(b.lower[19]).toBeCloseTo(8)
+  expect(b.upper[18]).toBeNull()
+  expect(bollingerPosition(values)).toBeCloseTo(0.75)
+  expect(bollingerPosition(Array(20).fill(10))).toBeNull()
+  expect(bollingerPosition([1, 2])).toBeNull()
+})
+
+test('sharpe e sortino usam o retorno acima do CDI e dão null sem variação ou sem queda', () => {
+  const r = [0.02, -0.01, 0.03, -0.02]
+  const rf = [0.001, 0.001, 0.001, 0.001]
+  // Excesso: 0,019; -0,011; 0,029; -0,021. Média 0,004; desvio amostral 0,02271; 252 pregões.
+  expect(sharpe(r, rf)).toBeCloseTo((0.004 / stdev([0.019, -0.011, 0.029, -0.021])) * Math.sqrt(252))
+  // Desvio só das quedas: raiz de (0,011² + 0,021²) / 4.
+  expect(sortino(r, rf)).toBeCloseTo((0.004 / Math.sqrt((0.011 ** 2 + 0.021 ** 2) / 4)) * Math.sqrt(252))
+  expect(sharpe([0.01, 0.01], [0, 0])).toBeNull()
+  expect(sortino([0.01, 0.02], [0, 0])).toBeNull()
+})
+
+test('beta mede quanto o ativo anda a cada 1 do mercado; null se o mercado não varia', () => {
+  expect(beta([0.02, -0.04, 0.06], [0.01, -0.02, 0.03])).toBeCloseTo(2)
+  expect(beta([0.01, 0.02], [0, 0])).toBeNull()
+})
+
+test('cdiIndex acumula o CDI entre os dias da série, inclusive os sem pregão nela; sem cobertura, null', () => {
+  const at = (d: number, p: number) => ({ t: new Date(Date.UTC(2026, 9, d, 12)).toISOString(), p })
+  const points = [at(1, 10), at(2, 11), at(5, 12)]
+  const rates = [at(1, 1), at(2, 1), at(3, 1), at(4, 1), at(5, 1), at(6, 1)]
+  const idx = cdiIndex(points, rates)!
+  expect(idx[0]).toBe(1)
+  expect(idx[1]).toBeCloseTo(1.01)
+  expect(idx[2]).toBeCloseTo(1.01 ** 4)
+  expect(cdiIndex(points, [])).toBeNull()
+  expect(cdiIndex(points, [at(2, 1)])).toBeNull()
+})
+
+test('indexTo100 põe a série na base 100', () => {
+  expect(indexTo100([50, 75, 25])).toEqual([100, 150, 50])
+})
+
+test('hasMonths aceita a série que cobre o período, com folga de 15 dias', () => {
+  const at = (y: number, m: number, d: number) => ({ t: new Date(Date.UTC(y, m, d, 12)).toISOString(), p: 1 })
+  const end = at(2026, 9, 30)
+  expect(hasMonths([at(2025, 9, 20), end], 12)).toBe(true)
+  expect(hasMonths([at(2025, 10, 30), end], 12)).toBe(false)
+  expect(hasMonths([], 12)).toBe(false)
 })
 
 test('correlation dá 1 para séries que andam juntas, -1 para opostas e null sem variação', () => {
@@ -137,6 +253,11 @@ test('withLivePrice troca o fechamento de hoje pela cotação ao vivo ou acresce
   expect(withLivePrice(hist, live(9, 'undefined'))).toEqual(hist)
   expect(withLivePrice(hist, undefined)).toEqual(hist)
   expect(withLivePrice([], live(9, '2026-10-30T17:00:00.000Z'))).toEqual([])
+})
+
+test('alignPoints devolve os pontos de cada série só nos dias em comum', () => {
+  const at = (d: number, p: number) => ({ t: new Date(Date.UTC(2026, 9, d, 15)).toISOString(), p })
+  expect(alignPoints([[at(1, 1), at(2, 2)], [at(2, 9), at(3, 8)]])).toEqual([[at(2, 2)], [at(2, 9)]])
 })
 
 test('alignByDay deixa só os dias em que todos os ativos negociaram', () => {

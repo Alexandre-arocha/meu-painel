@@ -38,7 +38,7 @@ test('mostra o gráfico e os indicadores do ativo a partir do histórico', async
   expect(within(tiles).getByText('RSI 14 dias')).toBeInTheDocument()
   expect(within(tiles).getByText('Volatilidade ao ano')).toBeInTheDocument()
   expect(within(tiles).getByText('Maior queda')).toBeInTheDocument()
-  expect(within(tiles).getByText('Acima')).toBeInTheDocument()
+  expect(within(tiles).getByText('Preço x média 21').nextSibling).toHaveTextContent('Acima')
   expect(within(engine).getByText('Como ler os números')).toBeInTheDocument()
 })
 
@@ -60,13 +60,78 @@ test('sem ativo com cotação, o motor pede para cadastrar um', () => {
   expect(screen.queryByRole('group', { name: 'Ativo' })).toBeNull()
 })
 
-test('teste de estratégia mostra o resultado contra comprar e segurar', async () => {
+test('teste de estratégia compara as quatro estratégias com comprar e segurar numa tabela', async () => {
   renderEngine()
   const bt = screen.getByRole('region', { name: 'Teste de estratégia' })
-  expect(await within(bt).findByText('Estratégia')).toBeInTheDocument()
-  expect(within(bt).getByText('Comprar e segurar')).toBeInTheDocument()
-  expect(within(bt).getByText('Trocas de posição')).toBeInTheDocument()
+  const table = within(bt).getByRole('table', { name: /Estratégias em BBAS3/ })
+  expect(within(table).getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Estratégia', 'Retorno', 'Maior queda', 'Trocas'])
+  const rows = within(table).getAllByRole('row').slice(1).map((r) => within(r).getByRole('rowheader').textContent)
+  expect(rows).toEqual(['Médias 9 e 21', 'RSI 30 e 70', 'Bollinger', 'Momento de 3 meses', 'Comprar e segurar'])
+  expect(within(bt).getByRole('img', { name: /Resultado das estratégias em BBAS3/ })).toBeInTheDocument()
+  expect(within(bt).getByText(/Cada troca de posição paga 0,1%/)).toBeInTheDocument()
   expect(within(bt).getByText(/Não é recomendação/)).toBeInTheDocument()
+})
+
+// 5 anos de pregões (cerca de 1250 dias), em dias úteis seguidos, terminando em 30/10/2026; a alta é de 0,05% ao dia com oscilação.
+const longDays = (start: number, drift: number, swing = 0): Point[] =>
+  Array.from({ length: 1260 }, (_, i) => {
+    const t = new Date(Date.UTC(2026, 9, 30, 15) - (1259 - i) * 1.45 * 86_400_000).toISOString()
+    return { t, p: start * (1 + drift) ** i * (1 + swing * Math.sin(i / 3)) }
+  })
+const fiveYears = longDays(20, 0.0005, 0.03)
+
+test('os períodos mudam o gráfico e as médias; a data longa traz o ano', async () => {
+  const user = userEvent.setup()
+  renderEngine({ history: ready({ 'b3:BBAS3': fiveYears, 'b3:B3SA3': fiveYears }) })
+  const periods = screen.getByRole('group', { name: 'Período' })
+  expect(within(periods).getAllByRole('button').map((b) => b.textContent)).toEqual(['3 meses', '1 ano', '5 anos'])
+  expect(within(periods).getByRole('button', { name: '3 meses' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('img', { name: /médias de 9 e 21 dias em 3 meses/ })).toBeInTheDocument()
+  await user.click(within(periods).getByRole('button', { name: '5 anos' }))
+  expect(screen.getByRole('img', { name: /médias de 50 e 200 dias em 5 anos/ })).toBeInTheDocument()
+  expect(screen.getAllByText('30/10/26').length).toBeGreaterThan(0)
+  expect(screen.getByText('Retorno em 5 anos')).toBeInTheDocument()
+  expect(screen.getByText('Preço x média 200')).toBeInTheDocument()
+  expect(within(screen.getByRole('table', { name: /Estratégias em BBAS3/ })).getByText('Médias 50 e 200')).toBeInTheDocument()
+})
+
+test('só aparecem os períodos que o histórico cobre; ao trocar de ativo, cai no maior que ele tem', async () => {
+  const user = userEvent.setup()
+  const umAno = fiveYears.slice(-250)
+  const comCripto: Position[] = [carteira[0], { id: '4', kind: 'cripto', symbol: 'bitcoin', quantity: 0.1, name: 'Bitcoin' }]
+  renderEngine({ positions: comCripto, history: ready({ 'b3:BBAS3': fiveYears, 'crypto:bitcoin': umAno }) })
+  await user.click(screen.getByRole('button', { name: '5 anos' }))
+  await user.click(screen.getByRole('button', { name: 'Bitcoin' }))
+  const periods = screen.getByRole('group', { name: 'Período' })
+  expect(within(periods).getAllByRole('button').map((b) => b.textContent)).toEqual(['3 meses', '1 ano'])
+  expect(within(periods).getByRole('button', { name: '1 ano' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('com o Ibovespa e o CDI, mostra a comparação em base 100 e os indicadores contra eles', () => {
+  const ibov = days(Array.from({ length: 40 }, (_, i) => 130000 * (1 + 0.01 * Math.sin(i))))
+  const cdi = days(Array.from({ length: 40 }, () => 0.05))
+  renderEngine({ benchmarks: { ibov, cdi } })
+  const compare = screen.getByRole('region', { name: 'Comparação' })
+  expect(within(compare).getByRole('img', { name: /BBAS3, Ibovespa e CDI em base 100/ })).toBeInTheDocument()
+  // O CDI rende 0,05% em 39 dias de intervalo: 1,0005^39 = 1,97%.
+  expect(within(compare).getByText('CDI').closest('.row')).toHaveTextContent('+1,97%')
+  expect(within(compare).getByText('Ibovespa')).toBeInTheDocument()
+  const tiles = within(screen.getByRole('group', { name: 'Indicadores' }))
+  for (const label of ['Sharpe', 'Sortino', 'Beta', 'Correlação com o Ibovespa']) {
+    expect(tiles.getByText(label).nextSibling).not.toHaveTextContent('—')
+  }
+  expect(tiles.getByText('Bollinger')).toBeInTheDocument()
+  expect(tiles.getByText('MACD x sinal').nextSibling).toHaveTextContent(/Acima|Abaixo/)
+})
+
+test('sem o Ibovespa e o CDI, a comparação avisa e os indicadores ficam com traço', () => {
+  renderEngine()
+  const compare = screen.getByRole('region', { name: 'Comparação' })
+  expect(within(compare).getByText(/Ibovespa e CDI indisponíveis agora/)).toBeInTheDocument()
+  const tiles = within(screen.getByRole('group', { name: 'Indicadores' }))
+  for (const label of ['Sharpe', 'Sortino', 'Beta', 'Correlação com o Ibovespa']) {
+    expect(tiles.getByText(label).nextSibling).toHaveTextContent('—')
+  }
 })
 
 test('risco da carteira aparece com a carteira e pede a carteira quando ela está vazia', async () => {

@@ -22,6 +22,7 @@ function deps(over: Partial<Markets> = {}, brapi: Partial<PriceProvider> = {}) {
     findCrypto: async () => null,
     fx: async () => [],
     fxHistory: async () => [],
+    cdi: async () => [],
     ...over,
   }
   const provider: PriceProvider = { getQuotes: async () => [], ...brapi }
