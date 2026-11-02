@@ -231,18 +231,28 @@ export function correlation(a: number[], b: number[]): number | null {
   return sxy / Math.sqrt(sxx * syy)
 }
 
-export type Risk = { total: number; annualVol: number; var95: number }
+export type Risk = { total: number; annualVol: number; var95: number; cvar95: number; maxDrawdown: number }
 
 // shortcut: a renda fixa entra com volatilidade zero; trocar se a carteira tiver título prefixado longo.
 export function portfolioRisk(stocks: { value: number; returns: number[] }[], fixedIncome: number): Risk {
   const total = fixedIncome + stocks.reduce((a, s) => a + s.value, 0)
-  if (total <= 0) return { total: 0, annualVol: 0, var95: 0 }
+  if (total <= 0) return { total: 0, annualVol: 0, var95: 0, cvar95: 0, maxDrawdown: 0 }
   const n = stocks.length === 0 ? 0 : Math.min(...stocks.map((s) => s.returns.length))
   const daily = Array.from({ length: n }, (_, i) =>
     stocks.reduce((a, s) => a + (s.value / total) * s.returns[s.returns.length - n + i], 0),
   )
-  const sd = stdev(daily)
-  return { total, annualVol: sd * Math.sqrt(TRADING_DAYS), var95: 1.645 * sd * total }
+  // VaR e CVaR de 95% em 1 dia, pelos 5% piores dias: o que aconteceu de fato, sem supor curva normal.
+  const worst = [...daily].sort((a, b) => a - b).slice(0, Math.ceil(n * 0.05))
+  const lossOf = (r: number | undefined) => Math.max(0, -(r ?? 0)) * total
+  let level = 1
+  const curve = [1, ...daily.map((r) => (level *= 1 + r))]
+  return {
+    total,
+    annualVol: stdev(daily) * Math.sqrt(TRADING_DAYS),
+    var95: lossOf(worst[worst.length - 1]),
+    cvar95: worst.length > 0 ? lossOf(mean(worst)) : 0,
+    maxDrawdown: maxDrawdown(curve),
+  }
 }
 
 // Divide o aporte pelo que falta para cada classe chegar à meta. A escolha do ativo dentro da classe fica com quem investe.

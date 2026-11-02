@@ -110,7 +110,7 @@ test('só aparecem os períodos que o histórico cobre; ao trocar de ativo, cai 
 test('com o Ibovespa e o CDI, mostra a comparação em base 100 e os indicadores contra eles', () => {
   const ibov = days(Array.from({ length: 40 }, (_, i) => 130000 * (1 + 0.01 * Math.sin(i))))
   const cdi = days(Array.from({ length: 40 }, () => 0.05))
-  renderEngine({ benchmarks: { ibov, cdi } })
+  renderEngine({ benchmarks: { ibov, cdi, selic: [], ipca: [] } })
   const compare = screen.getByRole('region', { name: 'Comparação' })
   expect(within(compare).getByRole('img', { name: /BBAS3, Ibovespa e CDI em base 100/ })).toBeInTheDocument()
   // O CDI rende 0,05% em 39 dias de intervalo: 1,0005^39 = 1,97%.
@@ -132,17 +132,6 @@ test('sem o Ibovespa e o CDI, a comparação avisa e os indicadores ficam com tr
   for (const label of ['Sharpe', 'Sortino', 'Beta', 'Correlação com o Ibovespa']) {
     expect(tiles.getByText(label).nextSibling).toHaveTextContent('—')
   }
-})
-
-test('risco da carteira aparece com a carteira e pede a carteira quando ela está vazia', async () => {
-  const { unmount } = renderEngine({ positions: [] })
-  expect(await screen.findByText('Cadastre seus investimentos para ver o risco.')).toBeInTheDocument()
-  unmount()
-  renderEngine()
-  const risk = screen.getByRole('region', { name: 'Risco da carteira' })
-  // A correlação é entre os dois maiores ativos: B3SA3 (cerca de R$ 2.760) e BBAS3 (cerca de R$ 1.930).
-  expect(await within(risk).findByText('Correlação B3SA3 e BBAS3')).toBeInTheDocument()
-  expect(within(risk).getByText('Queda possível num dia ruim (1 em 20)')).toBeInTheDocument()
 })
 
 test('simulador divide o aporte pela meta de cada classe e mostra erro em valor inválido', async () => {

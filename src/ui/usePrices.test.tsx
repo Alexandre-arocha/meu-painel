@@ -41,6 +41,7 @@ function sources(over: Partial<Markets> = {}) {
     },
     fxHistory: async () => [],
     cdi: async () => [],
+    sgsLast: async () => [],
     ...over,
   }
   return { calls, deps: { makePrices: () => brapi, token: 'tok', markets, store: localStorage, now: () => new Date('2026-10-28T14:00:00Z') } }

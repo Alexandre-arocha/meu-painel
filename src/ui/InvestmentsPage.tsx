@@ -6,11 +6,13 @@ import { loadPositions, loadSettings, savePositions, saveSettings, type Settings
 import { priceKeys, resolveTargets, totals, type Position } from '../domain/portfolio'
 import { AllocationCard } from './AllocationCard'
 import { localDate } from './format'
+import { PortfolioLab } from './PortfolioLab'
 import { PositionsCard } from './PositionsCard'
 import { QuantEngine } from './QuantEngine'
 import { useBenchmarks } from './useBenchmarks'
 import { useHistory } from './useHistory'
 import { usePrices } from './usePrices'
+import { useSnapshots } from './useSnapshots'
 
 const defaultMarkets = createMarkets()
 
@@ -49,6 +51,9 @@ export function InvestmentsPage({ makePrices, markets = defaultMarkets, news, no
 
   const prices = useMemo(() => Object.fromEntries(quotes.map((q) => [q.symbol, q.price])), [quotes])
   const targets = resolveTargets(settings)
+  const sums = totals(positions, prices)
+  // Preço velho não entra na evolução: o dia só é gravado com todas as fontes de hoje.
+  const snapshots = useSnapshots(sums.missing.length === 0 && !quotes.some((q) => q.stale) ? sums.total : null, localDate(now()), store)
 
   function update(next: Settings) {
     setSettings(next)
@@ -78,9 +83,10 @@ export function InvestmentsPage({ makePrices, markets = defaultMarkets, news, no
           }}
         />
         <QuantEngine history={history} benchmarks={benchmarks} positions={positions} quotes={quotes} targets={targets} news={items} now={new Date(now())} />
+        <PortfolioLab history={history} benchmarks={benchmarks} positions={positions} quotes={quotes} snapshots={snapshots} />
         <AllocationCard
           key={JSON.stringify(targets ?? null)}
-          totals={totals(positions, prices)}
+          totals={sums}
           target={targets}
           onTarget={(classTargets) => update({ ...settings, classTargets })}
         />

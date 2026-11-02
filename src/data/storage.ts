@@ -127,6 +127,17 @@ const BENCHMARKS_KEY = 'painel:v1:benchmarks'
 export const loadBenchmarks = (store: Storage = localStorage): PricesCache => readCache(store, BENCHMARKS_KEY)
 export const saveBenchmarks = (cache: PricesCache, store: Storage = localStorage): boolean => write(store, BENCHMARKS_KEY, cache)
 
+const SNAPSHOTS_KEY = 'painel:v1:snapshots'
+
+// Patrimônio de cada dia, { 'AAAA-MM-DD': total }. Vai para o banco: é a evolução que não dá para refazer depois.
+export function loadSnapshots(store: Storage = localStorage): Record<string, number> {
+  const d = readJson(store, SNAPSHOTS_KEY)
+  if (!d || typeof d !== 'object') return {}
+  return Object.fromEntries(Object.entries(d).filter(([day, v]) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(v)))
+}
+
+export const saveSnapshots = (s: Record<string, number>, store: Storage = localStorage): boolean => write(store, SNAPSHOTS_KEY, s)
+
 const EVENTS_KEY = 'painel:v1:events'
 const ROUTINE_KEY = 'painel:v1:routine'
 

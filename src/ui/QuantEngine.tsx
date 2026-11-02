@@ -3,7 +3,6 @@ import type { NewsItem } from '../data/news'
 import type { Quote } from '../data/prices'
 import { CLASSES, isPriced, labelOf, parseAmount, priceKey, totals, type ClassTargets, type Position } from '../domain/portfolio'
 import {
-  alignByDay,
   alignPoints,
   annualVol,
   backtest,
@@ -20,7 +19,6 @@ import {
   maCrossSignal,
   maxDrawdown,
   momentumSignal,
-  portfolioRisk,
   projectFixedIncome,
   rsi,
   rsiSignal,
@@ -80,7 +78,7 @@ type Props = {
 }
 
 const last = (xs: number[]) => xs[xs.length - 1]
-const NO_BENCHMARKS: Benchmarks = { ibov: [], cdi: [] }
+const NO_BENCHMARKS: Benchmarks = { ibov: [], cdi: [], selic: [], ipca: [] }
 const list = new Intl.ListFormat('pt-BR')
 const twoDecimals = (n: number | null) => (n == null ? '—' : n.toFixed(2).replace('.', ','))
 
@@ -105,7 +103,7 @@ function ResultRow({ label, color, change }: { label: string; color: string; cha
   )
 }
 
-// Motor quantitativo: indicadores, teste de estratégia, risco e simulador de aportes. Descreve o passado; não recomenda.
+// Motor quantitativo: indicadores, comparação, teste de estratégia e simulador de aportes. Descreve o passado; não recomenda.
 export function QuantEngine({ history, benchmarks = NO_BENCHMARKS, positions, quotes, targets, news = [], now = new Date() }: Props) {
   const [picked, setPicked] = useState<string | null>(null)
   const [months, setMonths] = useState(3)
@@ -195,54 +193,13 @@ export function QuantEngine({ history, benchmarks = NO_BENCHMARKS, positions, qu
   const hasNews = key.startsWith('b3:') || key.startsWith('us:')
   const signal = computeSignal(news.filter((i) => i.tags.includes(key)), quoteOf(key), now)
 
-  const held = positions
-    .filter(isPriced)
-    .map((p) => ({ key: priceKey(p), label: labelOf(p), value: p.quantity * (priceOf(priceKey(p)) ?? 0) }))
-    .filter((h) => h.value > 0)
-  const heldCloses = alignByDay(held.map((h) => merged[h.key] ?? []))
-  const stocks = held.map((h, i) => ({ value: h.value, returns: dailyReturns(heldCloses[i]) }))
-  const manual = positions.reduce((a, p) => a + (isPriced(p) ? 0 : p.amount), 0)
   const missingPrice = sums.missing.length > 0
-  const riskReady = !missingPrice && stocks.every((x) => x.returns.length >= MIN_POINTS - 1)
-  const risk = portfolioRisk(stocks, manual)
-  const [first, second] = [...held].sort((a, b) => b.value - a.value)
-  const pair = first && second ? alignByDay([merged[first.key] ?? [], merged[second.key] ?? []]) : null
-  const corr = pair ? correlation(dailyReturns(pair[0]), dailyReturns(pair[1])) : null
 
   const amount = parseAmount(amountText)
   const amountValue = amount.ok ? amount.value : 0
   const amountError = amountValue > 0 ? null : 'Informe um aporte maior que zero.'
   const rate = rateText.trim() === '' ? null : Number(rateText.replace(',', '.'))
   const rateError = rate === null || (Number.isFinite(rate) && rate >= 0) ? null : 'Informe uma taxa de zero ou mais.'
-
-  function riskBody() {
-    if (positions.length === 0) return <p className="muted">Cadastre seus investimentos para ver o risco.</p>
-    if (!riskReady) return <p className="muted">{WAIT}</p>
-    return (
-      <>
-        <div className="row">
-          <span>Valor da carteira</span>
-          <span className="num">{money(risk.total)}</span>
-        </div>
-        <div className="row">
-          <span>Volatilidade ao ano</span>
-          <span className="num">{ratio(risk.annualVol)}</span>
-        </div>
-        {first && second && (
-          <div className="row">
-            <span>
-              Correlação {first.label} e {second.label}
-            </span>
-            <span className="num">{corr == null ? '—' : corr.toFixed(2).replace('.', ',')}</span>
-          </div>
-        )}
-        <div className="row">
-          <span>Queda possível num dia ruim (1 em 20)</span>
-          <span className="num dn">{money(risk.var95)}</span>
-        </div>
-      </>
-    )
-  }
 
   function simulatorBody() {
     if (!targets) return <p className="muted">Defina as metas por classe abaixo para dividir o aporte.</p>
@@ -413,15 +370,6 @@ export function QuantEngine({ history, benchmarks = NO_BENCHMARKS, positions, qu
         <p className="muted">
           Cada troca de posição paga 0,1% de custo; fora do ativo, o dinheiro fica parado, sem render CDI. Mostra o que teria acontecido no passado. Não é
           recomendação de compra ou venda.
-        </p>
-      </section>
-
-      <section className="card" aria-label="Risco da carteira">
-        <h2>Risco da carteira</h2>
-        {riskBody()}
-        <p className="muted">
-          Estimativa com os últimos 3 meses; renda fixa, fundos e previdência entram sem oscilação. Correlação perto de 1 quer dizer que os dois maiores
-          ativos sobem e caem juntos. Não é recomendação.
         </p>
       </section>
 

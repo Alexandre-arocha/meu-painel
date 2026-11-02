@@ -178,10 +178,17 @@ test('correlation dá 1 para séries que andam juntas, -1 para opostas e null se
   expect(correlation([1, 1, 1], [1, 2, 3])).toBeNull()
 })
 
-test('portfolioRisk calcula a volatilidade e a queda possível num dia ruim (VaR 95%)', () => {
+test('portfolioRisk: VaR e CVaR de 95% saem dos piores dias do histórico, e a maior queda da carteira de hoje', () => {
+  // 40 dias: os 2 piores (5%) são -4% e -2%. A renda fixa dilui pela metade.
+  const returns = Array.from({ length: 40 }, (_, i) => (i === 10 ? -0.04 : i === 20 ? -0.02 : 0.001))
+  const tail = portfolioRisk([{ value: 1000, returns }], 1000)
+  expect(tail.var95).toBeCloseTo(0.01 * 2000)
+  expect(tail.cvar95).toBeCloseTo(0.015 * 2000)
+  expect(tail.maxDrawdown).toBeLessThan(0)
+  expect(tail.maxDrawdown).toBeGreaterThan(-0.03)
   const risk = portfolioRisk([{ value: 1000, returns: [0.01, -0.01, 0.01, -0.01] }], 1000)
   expect(risk.total).toBe(2000)
-  expect(risk.var95).toBeCloseTo(19, 0)
+  expect(risk.var95).toBeCloseTo(10)
   expect(risk.annualVol).toBeCloseTo(0.0917, 3)
 })
 

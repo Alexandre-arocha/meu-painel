@@ -24,6 +24,12 @@ test('cdi pede 6 anos ao Banco Central com tempo limite e marca cada dia ao meio
   expect(asked!.init?.signal).toBeInstanceOf(AbortSignal)
 })
 
+test('sgsLast pede os últimos valores da série ao Banco Central', async () => {
+  const { fetchFn, calls } = fake({ 'bcdata.sgs.432': [{ data: '02/11/2026', valor: '13.25' }] })
+  expect(await createMarkets(fetchFn).sgsLast(432, 1)).toEqual([{ t: '2026-11-02T12:00:00.000Z', p: 13.25 }])
+  expect(calls[0]).toContain('bcdata.sgs.432/dados/ultimos/1?formato=json')
+})
+
 const historyBody = {
   currency: 'BRL',
   price: 16.5,
@@ -125,6 +131,7 @@ const markets = (over: Partial<Markets> = {}): Markets => ({
   fx: async () => [],
   fxHistory: async () => [],
   cdi: async () => [],
+  sgsLast: async () => [],
   ...over,
 })
 const chartOf = (over: Partial<Chart> = {}): Chart => ({ currency: 'BRL', price: 1, changePct: 0, updatedAt: null, name: null, points: [], ...over })
