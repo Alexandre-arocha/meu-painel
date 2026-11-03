@@ -6,6 +6,7 @@ import { loadEvents, loadPositions, loadSettings } from '../data/storage'
 import { countdownLabel, DEFAULT_ROUTINE, importantDates, planDay } from '../domain/agenda'
 import {
   CLASSES,
+  classOf,
   dayChange,
   isPriced,
   labelOf,
@@ -14,6 +15,7 @@ import {
   priceKey,
   resolveTargets,
   totals,
+  type AssetClass,
 } from '../domain/portfolio'
 import { yearVersus } from '../domain/portfolioLab'
 import { hhmm, localDate, longDate, money, pct, signedMoney } from './format'
@@ -26,6 +28,8 @@ import { usePrices } from './usePrices'
 import { useSnapshots } from './useSnapshots'
 
 const defaultMarkets = createMarkets()
+// FIIs e ETFs também são fundos: imobiliários e de índice.
+const TILE_CLASSES: AssetClass[] = ['acoes', 'fiis', 'etfs', 'fundos']
 const percent = (n: number) => `${Math.round(n * 100)}%`
 const tone = (n: number) => (n >= 0 ? 'up' : 'dn')
 
@@ -78,8 +82,9 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
     const slot = held.indexOf(c)
     return { ...c, value: sums.byClass[c.id], goal: target?.[c.id] ?? 0, color: slot >= 0 ? `var(--viz-${slot + 1})` : undefined }
   })
-  // Todos os investimentos, do maior para o menor. Só os com cotação têm variação do dia.
+  // Ações e fundos, do maior para o menor. Só os com cotação têm variação do dia.
   const tiles = positions
+    .filter((p) => TILE_CLASSES.includes(classOf(p.kind)))
     .map((p) => ({
       id: p.id,
       label: labelOf(p),
@@ -112,15 +117,17 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
             </div>
           ) : (
             <>
-              <ul className="my-assets" aria-label="Seus investimentos">
-                {tiles.map((t) => (
-                  <li key={t.id}>
-                    <span className="muted">{t.label}</span>
-                    <b className="num">{t.value === null ? '—' : money(t.value)}</b>
-                    {t.quote && <span className={`num ${tone(t.quote.changePct)}`}>{pct(t.quote.changePct)}</span>}
-                  </li>
-                ))}
-              </ul>
+              {tiles.length > 0 && (
+                <ul className="my-assets" aria-label="Seus investimentos">
+                  {tiles.map((t) => (
+                    <li key={t.id}>
+                      <span className="muted">{t.label}</span>
+                      <b className="num">{t.value === null ? '—' : money(t.value)}</b>
+                      {t.quote && <span className={`num ${tone(t.quote.changePct)}`}>{pct(t.quote.changePct)}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="worth">
                 <span className="muted">Patrimônio</span>
                 <b className="num">{ready ? money(sums.total) : '—'}</b>
