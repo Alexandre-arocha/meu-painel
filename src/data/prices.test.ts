@@ -72,6 +72,22 @@ test('provedor do servidor chama /api/brapi sem Authorization', async () => {
   expect(calls[0]).toEqual({ url: '/api/brapi/quote?symbols=BBAS3', auth: null })
 })
 
+test('getQuotes pede um ativo de cada vez: a brapi recusa chamadas simultâneas com 429', async () => {
+  let running = 0
+  let most = 0
+  const f = (async (url: string) => {
+    running++
+    most = Math.max(most, running)
+    await Promise.resolve()
+    running--
+    const symbol = new URL(url, 'http://x').searchParams.get('symbols')
+    return new Response(JSON.stringify({ results: [{ symbol, data: { regularMarketPrice: 10, regularMarketChangePercent: 0, regularMarketTime: NOW.toISOString() } }] }))
+  }) as unknown as typeof fetch
+  const qs = await createProxyPriceProvider(f, () => NOW).getQuotes(['BBAS3', 'B3SA3', 'NLFA11'])
+  expect(qs.map((q) => q.symbol)).toEqual(['BBAS3', 'B3SA3', 'NLFA11'])
+  expect(most).toBe(1)
+})
+
 test('getQuotes pede só a cotação, um ativo por chamada: o plano grátis aceita 1 e recusa o gráfico do dia', async () => {
   const urls: string[] = []
   const f = (async (url: string) => {

@@ -97,8 +97,9 @@ export function createBrapiProvider(
 
     async getQuotes(symbols) {
       if (!viaServer && !token) throw new Error('token ausente')
-      // Um ativo por chamada: o plano grátis da brapi recusa mais de 1 (QUOTES_PER_REQUEST_EXCEEDED).
-      const results = (await Promise.all(symbols.map((s) => quote(s)))).flat()
+      // Um ativo por chamada e um de cada vez: o plano grátis da brapi recusa mais de 1 (QUOTES_PER_REQUEST_EXCEEDED) e chamadas simultâneas (429).
+      const results: { symbol: string; data: Raw }[] = []
+      for (const s of symbols) results.push(...(await quote(s)))
       return results
         .filter((r) => typeof r.data?.regularMarketPrice === 'number' && Number.isFinite(r.data.regularMarketPrice))
         .map((r) => {
