@@ -5,8 +5,8 @@ Um lugar só para acompanhar investimentos, notícias e agenda.
 ## O que tem
 
 - **Início:** a tela do dia a dia, em três partes.
-  - **Investimentos:** Ibovespa, dólar, S&P 500 e Bitcoin do dia; o patrimônio com a variação do dia em reais e em %; uma barra fina com a divisão por classe e a meta de cada uma; a curva da evolução; os ativos contra o Ibovespa e o CDI em 1 ano; e os seis maiores ativos com cotação. Sem nada cadastrado, um botão leva ao cadastro.
-  - **Calendário:** o mês com os dias de compromisso marcados. Tocar num dia mostra o que há nele. Embaixo ficam as próximas datas, com os vencimentos da renda fixa.
+  - **Investimentos:** o patrimônio com a variação do dia em reais e em %; uma barra fina com a divisão por classe e a meta de cada uma; a curva da evolução; os ativos contra o Ibovespa e o CDI em 1 ano; e os seis maiores ativos com cotação. Sem nada cadastrado, um botão leva ao cadastro.
+  - **Calendário:** o mês com os dias de compromisso marcados. Tocar num dia mostra os seus compromissos nele. Embaixo ficam as próximas datas, com os vencimentos da renda fixa.
   - **Notícias:** os temas, a manchete com foto grande e as demais com miniatura.
   - **Arrumação:** no computador, três colunas (notícias, investimentos e calendário). Entre 900 e 1099 px, investimentos vai para cima. No celular, uma coluna na ordem investimentos, calendário e notícias.
 - **Investimentos:** cadastro manual de qualquer investimento.

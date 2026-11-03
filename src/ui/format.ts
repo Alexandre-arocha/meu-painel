@@ -11,10 +11,6 @@ const compact = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'B
 // Valor grande em reais, curto: "R$ 612 mil".
 export const shortMoney = (n: number) => compact.format(n)
 
-const pts = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
-// Pontos de índice, como "131.246".
-export const points = (n: number) => pts.format(n)
-
 // Dias da semana a partir do domingo (0 = domingo, como em Date.getDay).
 export const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { createMarkets, type Markets } from '../data/markets'
 import type { NewsSource } from '../data/news'
 import type { PriceProvider } from '../data/prices'
-import { loadEvents, loadPositions, loadRoutine, loadSettings } from '../data/storage'
-import { countdownLabel, importantDates, planDay } from '../domain/agenda'
+import { loadEvents, loadPositions, loadSettings } from '../data/storage'
+import { countdownLabel, DEFAULT_ROUTINE, importantDates, planDay } from '../domain/agenda'
 import {
   CLASSES,
   dayChange,
@@ -18,7 +18,6 @@ import {
 import { yearVersus } from '../domain/portfolioLab'
 import { hhmm, localDate, longDate, money, pct, signedMoney } from './format'
 import { LineChart } from './LineChart'
-import { MarketStrip } from './MarketStrip'
 import { MonthCalendar } from './MonthCalendar'
 import { NewsFeed } from './NewsFeed'
 import { useBenchmarks } from './useBenchmarks'
@@ -50,7 +49,8 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
 
   // Os vencimentos da renda fixa entram no calendário junto com os compromissos.
   const events = [...loadEvents(store), ...maturityEvents(positions)]
-  const plan = planDay(selected, loadRoutine(store), events)
+  // Sem dias de trabalho, o plano fica só com os compromissos e os vencimentos; a rotina continua na Agenda.
+  const plan = planDay(selected, { ...DEFAULT_ROUTINE, workDays: [] }, events)
   const upcoming = importantDates(events, today, 3)
 
   const prices = Object.fromEntries(quotes.map((q) => [q.symbol, q.price]))
@@ -101,7 +101,6 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
       <div className="home">
         <section className="home-invest" aria-label="Investimentos">
           <h2>Investimentos</h2>
-          <MarketStrip markets={markets} />
           {positions.length === 0 ? (
             <div className="empty">
               <p className="muted">Cadastre o que você tem para ver o patrimônio, a variação do dia e a divisão por classe.</p>

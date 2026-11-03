@@ -24,7 +24,6 @@ const noPrices = (): PriceProvider => ({
   },
 })
 const chart = (price: number, changePct: number): Chart => ({ currency: null, price, changePct, updatedAt: null, name: null, points: [] })
-// Ibovespa, dólar, S&P 500 e Bitcoin; cada teste troca a fonte que quiser.
 const markets = (over: Partial<Markets> = {}): Markets => ({
   chart: async (symbol) => (symbol === '^BVSP' ? chart(131245.6, 0.85) : chart(5870.4, -0.32)),
   crypto: async () => [quote('crypto:bitcoin', 612345, 1.2)],
@@ -139,22 +138,13 @@ test('Início sem investimentos convida a cadastrar', () => {
   expect(screen.queryByText('Patrimônio')).toBeNull()
 })
 
-test('a faixa de mercados mostra os quatro números e o traço só na fonte que falhou', async () => {
-  renderHome({
-    markets: markets({
-      chart: async (symbol) => {
-        if (symbol === '^BVSP') throw new Error('Yahoo fora do ar')
-        return chart(5870.4, -0.32)
-      },
-    }),
-  })
-  const strip = screen.getByRole('list', { name: 'Mercados hoje' })
-  const tile = (label: string) => within(within(strip).getByText(label).closest('li')!)
-  expect(await tile('Ibovespa').findByText('—')).toBeInTheDocument()
-  expect(tile('S&P 500').getByText('5.870')).toBeInTheDocument()
-  expect(tile('S&P 500').getByText('-0,32%')).toBeInTheDocument()
-  expect(tile('Dólar').getByText('R$ 5,44')).toBeInTheDocument()
-  expect(tile('Bitcoin').getByText('R$ 612 mil')).toBeInTheDocument()
+test('o Início mostra só os seus dados: sem a faixa de mercados e sem a rotina no calendário', () => {
+  saveEvents([{ id: '1', title: 'Dentista', date: '2026-10-28', time: '18:00', kind: 'pessoal' }])
+  renderHome()
+  expect(screen.queryByRole('list', { name: 'Mercados hoje' })).toBeNull()
+  expect(within(calendar()).getByText('Dentista')).toBeInTheDocument()
+  expect(within(calendar()).queryByText('Trabalho')).toBeNull()
+  expect(within(calendar()).queryByText('Notícias do mercado')).toBeNull()
 })
 
 test('Início mostra o feed de notícias com filtro por tema', async () => {
