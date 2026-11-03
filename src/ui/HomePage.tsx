@@ -26,7 +26,6 @@ import { usePrices } from './usePrices'
 import { useSnapshots } from './useSnapshots'
 
 const defaultMarkets = createMarkets()
-const TOP = 6 // ativos com cotação na lista do Início
 const percent = (n: number) => `${Math.round(n * 100)}%`
 const tone = (n: number) => (n >= 0 ? 'up' : 'dn')
 
@@ -79,12 +78,15 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
     const slot = held.indexOf(c)
     return { ...c, value: sums.byClass[c.id], goal: target?.[c.id] ?? 0, color: slot >= 0 ? `var(--viz-${slot + 1})` : undefined }
   })
-  // Os maiores ativos com cotação; enquanto não há preço, vale a ordem do cadastro.
-  const top = positions
-    .filter(isPriced)
-    .map((p) => ({ id: p.id, key: priceKey(p), label: labelOf(p), value: positionValue(p, prices) }))
+  // Todos os investimentos, do maior para o menor. Só os com cotação têm variação do dia.
+  const tiles = positions
+    .map((p) => ({
+      id: p.id,
+      label: labelOf(p),
+      value: positionValue(p, prices),
+      quote: isPriced(p) ? quotes.find((q) => q.symbol === priceKey(p)) : undefined,
+    }))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-    .slice(0, TOP)
 
   return (
     <div className="page">
@@ -110,6 +112,15 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
             </div>
           ) : (
             <>
+              <ul className="my-assets" aria-label="Seus investimentos">
+                {tiles.map((t) => (
+                  <li key={t.id}>
+                    <span className="muted">{t.label}</span>
+                    <b className="num">{t.value === null ? '—' : money(t.value)}</b>
+                    {t.quote && <span className={`num ${tone(t.quote.changePct)}`}>{pct(t.quote.changePct)}</span>}
+                  </li>
+                ))}
+              </ul>
               <div className="worth">
                 <span className="muted">Patrimônio</span>
                 <b className="num">{ready ? money(sums.total) : '—'}</b>
@@ -157,20 +168,6 @@ export function HomePage({ makePrices, markets = defaultMarkets, news, now = () 
                 </>
               ) : (
                 <p className="muted">A divisão aparece quando os preços carregarem.</p>
-              )}
-              {top.length > 0 && (
-                <ul className="list assets" aria-label="Seus ativos">
-                  {top.map((a) => {
-                    const q = quotes.find((x) => x.symbol === a.key)
-                    return (
-                      <li key={a.id}>
-                        <span className="asset-name">{a.label}</span>
-                        <span className={`num ${q ? tone(q.changePct) : ''}`}>{q && pct(q.changePct)}</span>
-                        <span className="num">{a.value === null ? '—' : money(a.value)}</span>
-                      </li>
-                    )
-                  })}
-                </ul>
               )}
               <a className="more" href="#/investimentos">
                 Editar carteira

@@ -77,11 +77,16 @@ test('Início mostra a data, o patrimônio com a variação do dia, a divisão p
   expect(classes.getByText('Ações')).toBeInTheDocument()
   expect(classes.getByText('31%')).toBeInTheDocument()
   expect(classes.getByText('69%')).toBeInTheDocument()
-  // O maior primeiro: 200 x R$ 14,20 = R$ 2.840,00.
-  const [first, second] = within(screen.getByRole('list', { name: 'Seus ativos' })).getAllByRole('listitem')
-  expect(within(first).getByText('B3SA3')).toBeInTheDocument()
-  expect(within(first).getByText('R$ 2.840,00')).toBeInTheDocument()
-  expect(within(second).getByText('-1,97%')).toBeInTheDocument()
+  // Um quadro por investimento, inclusive a renda fixa, do maior para o menor: 200 x R$ 14,20 = R$ 2.840,00.
+  const tilesList = screen.getByRole('list', { name: 'Seus investimentos' })
+  const [cdb, b3, bb] = within(tilesList).getAllByRole('listitem')
+  expect(within(cdb).getByText('CDB')).toBeInTheDocument()
+  expect(within(cdb).getByText('R$ 10.000,00')).toBeInTheDocument()
+  expect(within(b3).getByText('B3SA3')).toBeInTheDocument()
+  expect(within(b3).getByText('R$ 2.840,00')).toBeInTheDocument()
+  expect(within(bb).getByText('-1,97%')).toBeInTheDocument()
+  // Os quadros ficam no alto, antes do patrimônio.
+  expect(tilesList.compareDocumentPosition(screen.getByText('Patrimônio')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
 test('as cores da barra seguem a ordem das classes que você tem, sem pular cor da paleta', async () => {
