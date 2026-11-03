@@ -77,16 +77,36 @@ test('Início mostra a data, o patrimônio com a variação do dia, a divisão p
   expect(classes.getByText('Ações')).toBeInTheDocument()
   expect(classes.getByText('31%')).toBeInTheDocument()
   expect(classes.getByText('69%')).toBeInTheDocument()
-  // Um quadro por investimento, inclusive a renda fixa, do maior para o menor: 200 x R$ 14,20 = R$ 2.840,00.
+  // Um quadro por ação ou fundo, do maior para o menor, sem a renda fixa: 200 x R$ 14,20 = R$ 2.840,00.
   const tilesList = screen.getByRole('list', { name: 'Seus investimentos' })
-  const [cdb, b3, bb] = within(tilesList).getAllByRole('listitem')
-  expect(within(cdb).getByText('CDB')).toBeInTheDocument()
-  expect(within(cdb).getByText('R$ 10.000,00')).toBeInTheDocument()
+  expect(within(tilesList).queryByText('CDB')).toBeNull()
+  const [b3, bb] = within(tilesList).getAllByRole('listitem')
   expect(within(b3).getByText('B3SA3')).toBeInTheDocument()
   expect(within(b3).getByText('R$ 2.840,00')).toBeInTheDocument()
   expect(within(bb).getByText('-1,97%')).toBeInTheDocument()
   // Os quadros ficam no alto, antes do patrimônio.
   expect(tilesList.compareDocumentPosition(screen.getByText('Patrimônio')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('os quadros têm ações, FIIs, ETFs e fundos; o resto fica de fora e, sem nenhum deles, não há quadro', async () => {
+  savePositions([
+    { id: 'a', kind: 'acao', symbol: 'BBAS3', quantity: 1 },
+    { id: 'f', kind: 'fii', symbol: 'HGLG11', quantity: 1 },
+    { id: 'e', kind: 'etf', symbol: 'NLFA11', quantity: 1 },
+    { id: 'u', kind: 'fundo', name: 'Fundo X', amount: 500 },
+    { id: 'r', kind: 'renda-fixa', name: 'CDB', amount: 1000, subtype: 'cdb' },
+    { id: 'b', kind: 'cripto', symbol: 'bitcoin', quantity: 1, name: 'Bitcoin' },
+    { id: 'x', kind: 'exterior', symbol: 'AAPL', quantity: 1 },
+    { id: 'm', kind: 'moeda', symbol: 'USD', quantity: 1 },
+  ])
+  const { unmount } = renderHome()
+  const labels = within(screen.getByRole('list', { name: 'Seus investimentos' })).getAllByRole('listitem').map((li) => li.firstChild?.textContent)
+  expect([...labels].sort()).toEqual(['BBAS3', 'Fundo X', 'HGLG11', 'NLFA11'])
+  unmount()
+  savePositions([{ id: 'r', kind: 'renda-fixa', name: 'CDB', amount: 1000, subtype: 'cdb' }])
+  renderHome()
+  expect(screen.queryByRole('list', { name: 'Seus investimentos' })).toBeNull()
+  expect(screen.getByText('Patrimônio')).toBeInTheDocument()
 })
 
 test('as cores da barra seguem a ordem das classes que você tem, sem pular cor da paleta', async () => {
